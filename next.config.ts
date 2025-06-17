@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -9,6 +10,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
+    formats: ['image/avif', 'image/webp'],
     remotePatterns: [
       {
         protocol: 'https',
@@ -17,6 +19,13 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
+  },
+  allowedDevOrigins: ['https://6000-firebase-studio-1747625597829.cluster-uf6urqn4lned4spwk4xorq6bpo.cloudworkstations.dev'],
+  experimental: {
+    // legacyBrowsers: false, // This line was removed
+    serverActions: {
+      allowedOrigins: ['6000-firebase-studio-1747625597829.cluster-uf6urqn4lned4spwk4xorq6bpo.cloudworkstations.dev'],
+    },
   },
 };
 
