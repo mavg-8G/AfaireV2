@@ -268,18 +268,22 @@ export type Translations = {
   dashboardViewMonthly: string;
   dashboardChartTotalActivities: string;
   dashboardChartCompletedActivities: string;
+  dashboardChartTotalHabits: string;
+  dashboardChartCompletedHabits: string;
+  dashboardHabitCompletionsLabel: string;
+  dashboardActivityCategoryBreakdownTitle: string;
+  dashboardHabitPerformanceTitle: string;
   dashboardWeekLabel: string;
   dashboardNoData: string;
   dashboardListLast7Days: string;
   dashboardListCurrentMonth: string;
   dashboardNoActivitiesForList: string;
   dashboardNotesLabel: string;
-  dashboardCategoryBreakdown: string;
+  dashboardActivityCountLabel: string; // "Completed Activities" (used for category chart)
   dashboardCompletionStats: string;
-  dashboardActivityCountLabel: string;
   dashboardOverallCompletionRate: string;
-  dashboardTotalActivitiesLabel: string;
-  dashboardTotalCompletedLabel: string;
+  dashboardTotalScheduledItemsLabel: string;
+  dashboardTotalCompletedItemsLabel: string;
   dashboardNoDataForAnalysis: string;
   dashboardProductivityPatterns: string;
   dashboardCompletionsByDay: string;
@@ -292,7 +296,8 @@ export type Translations = {
   dashboardCurrentStreak: string;
   dashboardLongestStreak: string;
   dashboardStreakDays: (params: { count: number }) => string;
-  dashboardStreakInsight: string;
+  dashboardStreakInsight: string; // General insight for streaks (old)
+  dashboardStreakInsightCombined: string; // New insight for combined activity/habit streaks
   dashboardFailureAnalysisTitle: string;
   dashboardFailureAnalysisMostIncomplete: (params: { days: string }) => string;
   dashboardFailureAnalysisAllComplete: string;
@@ -617,18 +622,22 @@ export const translations: Record<Locale, Translations> = {
     dashboardViewMonthly: "Current Month (by Week)",
     dashboardChartTotalActivities: "Total Activities",
     dashboardChartCompletedActivities: "Completed Activities",
+    dashboardChartTotalHabits: "Total Habit Slots",
+    dashboardChartCompletedHabits: "Completed Habit Slots",
+    dashboardHabitCompletionsLabel: "Habit Completions",
+    dashboardActivityCategoryBreakdownTitle: "Activity Category Breakdown",
+    dashboardHabitPerformanceTitle: "Habit Performance",
     dashboardWeekLabel: "W",
     dashboardNoData: "No activity data available for the selected period.",
     dashboardListLast7Days: "Last 7 Days",
     dashboardListCurrentMonth: "Current Month",
-    dashboardNoActivitiesForList: "No activities found for the selected period.",
+    dashboardNoActivitiesForList: "No activities or habits found for the selected period.",
     dashboardNotesLabel: "Notes",
-    dashboardCategoryBreakdown: "Category Breakdown",
-    dashboardCompletionStats: "Completion Statistics",
     dashboardActivityCountLabel: "Completed Activities",
+    dashboardCompletionStats: "Completion Statistics",
     dashboardOverallCompletionRate: "Overall Completion Rate:",
-    dashboardTotalActivitiesLabel: "Total Activities:",
-    dashboardTotalCompletedLabel: "Total Completed:",
+    dashboardTotalScheduledItemsLabel: "Total Scheduled Items:",
+    dashboardTotalCompletedItemsLabel: "Total Completed Items:",
     dashboardNoDataForAnalysis: "Not enough data for analysis in this period.",
     dashboardProductivityPatterns: "Productivity Patterns",
     dashboardCompletionsByDay: "Completions by Day of Week",
@@ -641,11 +650,12 @@ export const translations: Record<Locale, Translations> = {
     dashboardCurrentStreak: "Current Streak",
     dashboardLongestStreak: "Longest Streak",
     dashboardStreakDays: (params) => `${params.count} day${params.count === 1 ? '' : 's'}`,
-    dashboardStreakInsight: "Consistency is key! Uncompleted tasks break streaks.",
-    dashboardFailureAnalysisTitle: "What days do you usually miss your habits?",
-    dashboardFailureAnalysisMostIncomplete: (params) => `The days with the most incomplete tasks are: ${params.days}.`,
-    dashboardFailureAnalysisAllComplete: "Congratulations! It seems you complete all your tasks or have no tasks scheduled in this period.",
-    dashboardFailureAnalysisInsight: "If this is recurrent, would it be beneficial to schedule fewer tasks for those days?",
+    dashboardStreakInsight: "Consistency is key! Uncompleted tasks break streaks.", // Old key
+    dashboardStreakInsightCombined: "Consistency is key! Uncompleted activities or habits break streaks.",
+    dashboardFailureAnalysisTitle: "What days do you usually miss your items?",
+    dashboardFailureAnalysisMostIncomplete: (params) => `The days with the most incomplete items are: ${params.days}.`,
+    dashboardFailureAnalysisAllComplete: "Congratulations! It seems you complete all your items or have no items scheduled in this period.",
+    dashboardFailureAnalysisInsight: "If this is recurrent, would it be beneficial to schedule fewer items for those days?",
     dashboardFailureAnalysisNoData: "Not enough data to analyze failure days.",
     historyPageTitle: "Activity History",
     historyPageDescription: "Recent actions performed during this session.",
@@ -696,7 +706,7 @@ export const translations: Record<Locale, Translations> = {
             changes.push(`Mode from "${params.oldMode}" to "${params.newMode}"`);
         }
         if (changes.length > 0) {
-            if(params.oldName && params.oldName === params.newName) desc += `"${params.newName}".`; // Add name if not part of changes
+            if(params.oldName && params.oldName === params.newName) desc += `"${params.newName}".`;
             desc += ` Changes: ${changes.join(', ')}.`;
         } else if (!params.oldName || params.oldName === params.newName) {
              desc += ` (Icon: ${params.newIconName}, Mode: ${params.newMode}).`;
@@ -853,7 +863,7 @@ export const translations: Record<Locale, Translations> = {
     administratorLabel: "Administrador",
     adminBadge: "Admin",
     adminStatusEditDisabled: "El estado de administrador se puede cambiar durante la edición.",
-    passwordComplexityRequirements: "La contraseña debe cumplir los requisitos de complejidad.",
+    passwordComplexityRequirements: "La contraseña debe cumplir los requisitos de complexidad.",
     passwordRequiresLowercase: "Debe contener al menos una letra minúscula.",
     passwordRequiresUppercase: "Debe contener al menos una letra mayúscula.",
     passwordRequiresNumber: "Debe contener al menos un número.",
@@ -1010,18 +1020,22 @@ export const translations: Record<Locale, Translations> = {
     dashboardViewMonthly: "Mes Actual (por Semana)",
     dashboardChartTotalActivities: "Actividades Totales",
     dashboardChartCompletedActivities: "Actividades Completadas",
+    dashboardChartTotalHabits: "Franjas de Hábitos Totales",
+    dashboardChartCompletedHabits: "Franjas de Hábitos Completadas",
+    dashboardHabitCompletionsLabel: "Completados de Hábitos",
+    dashboardActivityCategoryBreakdownTitle: "Desglose por Categoría de Actividad",
+    dashboardHabitPerformanceTitle: "Rendimiento de Hábitos",
     dashboardWeekLabel: "S",
     dashboardNoData: "No hay datos de actividad disponibles para el período seleccionado.",
     dashboardListLast7Days: "Últimos 7 Días",
     dashboardListCurrentMonth: "Mes Actual",
-    dashboardNoActivitiesForList: "No se encontraron actividades para el período seleccionado.",
+    dashboardNoActivitiesForList: "No se encontraron actividades o hábitos para el período seleccionado.",
     dashboardNotesLabel: "Notas",
-    dashboardCategoryBreakdown: "Desglose por Categoría",
-    dashboardCompletionStats: "Estadísticas de Finalización",
     dashboardActivityCountLabel: "Actividades Completadas",
+    dashboardCompletionStats: "Estadísticas de Finalización",
     dashboardOverallCompletionRate: "Tasa de Finalización General:",
-    dashboardTotalActivitiesLabel: "Actividades Totales:",
-    dashboardTotalCompletedLabel: "Total Completadas:",
+    dashboardTotalScheduledItemsLabel: "Total de Elementos Programados:",
+    dashboardTotalCompletedItemsLabel: "Total de Elementos Completados:",
     dashboardNoDataForAnalysis: "No hay suficientes datos para el análisis en este período.",
     dashboardProductivityPatterns: "Patrones de Productividad",
     dashboardCompletionsByDay: "Finalizaciones por Día de la Semana",
@@ -1035,10 +1049,11 @@ export const translations: Record<Locale, Translations> = {
     dashboardLongestStreak: "Racha Más Larga",
     dashboardStreakDays: (params) => `${params.count} día${params.count === 1 ? '' : 's'}`,
     dashboardStreakInsight: "¡La constancia es la clave! Las tareas no completadas rompen las rachas.",
-    dashboardFailureAnalysisTitle: "¿Qué días sueles fallar en tus hábitos?",
-    dashboardFailureAnalysisMostIncomplete: (params) => `Los días que más tareas quedan incompletas son: ${params.days}.`,
-    dashboardFailureAnalysisAllComplete: "¡Felicidades! Parece que completas todas tus tareas o no tienes tareas programadas en este periodo.",
-    dashboardFailureAnalysisInsight: "Si esto es recurrente, ¿te convendría programar menos tareas para esos días?",
+    dashboardStreakInsightCombined: "¡La constancia es la clave! Actividades o hábitos no completados rompen las rachas.",
+    dashboardFailureAnalysisTitle: "¿Qué días sueles fallar en tus elementos programados?",
+    dashboardFailureAnalysisMostIncomplete: (params) => `Los días que más elementos quedan incompletos son: ${params.days}.`,
+    dashboardFailureAnalysisAllComplete: "¡Felicidades! Parece que completas todos tus elementos o no tienes elementos programados en este periodo.",
+    dashboardFailureAnalysisInsight: "Si esto es recurrente, ¿te convendría programar menos elementos para esos días?",
     dashboardFailureAnalysisNoData: "No hay suficientes datos para analizar los días de fallo.",
     historyPageTitle: "Historial de Actividad",
     historyPageDescription: "Acciones recientes realizadas durante esta sesión.",
@@ -1403,18 +1418,22 @@ export const translations: Record<Locale, Translations> = {
     dashboardViewMonthly: "Mois en cours (par semaine)",
     dashboardChartTotalActivities: "Total des activités",
     dashboardChartCompletedActivities: "Activités terminées",
+    dashboardChartTotalHabits: "Total Créneaux d'Habitudes",
+    dashboardChartCompletedHabits: "Créneaux d'Habitudes Terminés",
+    dashboardHabitCompletionsLabel: "Habitudes terminées",
+    dashboardActivityCategoryBreakdownTitle: "Répartition par Catégorie d'Activité",
+    dashboardHabitPerformanceTitle: "Performance des Habitudes",
     dashboardWeekLabel: "S",
     dashboardNoData: "Aucune donnée d'activité disponible pour la période sélectionnée.",
     dashboardListLast7Days: "7 derniers jours",
     dashboardListCurrentMonth: "Mois en cours",
-    dashboardNoActivitiesForList: "Aucune activité trouvée pour la période sélectionnée.",
+    dashboardNoActivitiesForList: "Aucune activité ou habitude trouvée pour la période sélectionnée.",
     dashboardNotesLabel: "Notes",
-    dashboardCategoryBreakdown: "Répartition par catégorie",
-    dashboardCompletionStats: "Statistiques d'achèvement",
     dashboardActivityCountLabel: "Activités terminées",
+    dashboardCompletionStats: "Statistiques d'achèvement",
     dashboardOverallCompletionRate: "Taux d'achèvement global:",
-    dashboardTotalActivitiesLabel: "Activités totales:",
-    dashboardTotalCompletedLabel: "Total terminées:",
+    dashboardTotalScheduledItemsLabel: "Total d'éléments programmés:",
+    dashboardTotalCompletedItemsLabel: "Total d'éléments terminés:",
     dashboardNoDataForAnalysis: "Pas assez de données pour l'analyse sur cette période.",
     dashboardProductivityPatterns: "Patrons de productivité",
     dashboardCompletionsByDay: "Achèvements par jour de la semaine",
@@ -1428,10 +1447,11 @@ export const translations: Record<Locale, Translations> = {
     dashboardLongestStreak: "Plus Longue Série",
     dashboardStreakDays: (params) => `${params.count} jour${params.count === 1 ? '' : 's'}`,
     dashboardStreakInsight: "La régularité est la clé ! Les tâches non terminées brisent les séries.",
-    dashboardFailureAnalysisTitle: "Quels jours manquez-vous habituellement vos habitudes ?",
-    dashboardFailureAnalysisMostIncomplete: (params) => `Les jours avec le plus de tâches incomplètes sont : ${params.days}.`,
-    dashboardFailureAnalysisAllComplete: "Félicitations ! Il semble que vous terminez toutes vos tâches ou que vous n'avez aucune tâche planifiée pour cette période.",
-    dashboardFailureAnalysisInsight: "Si cela est récurrent, serait-il avantageux de planifier moins de tâches pour ces jours-là ?",
+    dashboardStreakInsightCombined: "La régularité est la clé ! Les activités ou habitudes non terminées brisent les séries.",
+    dashboardFailureAnalysisTitle: "Quels jours manquez-vous habituellement vos éléments programmés ?",
+    dashboardFailureAnalysisMostIncomplete: (params) => `Les jours avec le plus d'éléments incomplets sont : ${params.days}.`,
+    dashboardFailureAnalysisAllComplete: "Félicitations ! Il semble que vous terminez tous vos éléments ou que vous n'avez aucun élément programmé pour cette période.",
+    dashboardFailureAnalysisInsight: "Si cela est récurrent, serait-il avantageux de programmer moins d'éléments pour ces jours-là ?",
     dashboardFailureAnalysisNoData: "Pas assez de données pour analyser les jours d'échec.",
     historyPageTitle: "Historique des activités",
     historyPageDescription: "Actions récentes effectuées pendant cette session.",
@@ -1567,5 +1587,3 @@ type PathImpl<T, Key extends keyof T> =
 type Path<T> = PathImpl<T, keyof T> | keyof T;
 
 export type TranslationKey = Path<Translations['en']>;
-
-    

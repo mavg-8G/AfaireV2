@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppStore } from '@/hooks/use-app-store';
-import type { Activity, Category, RecurrenceRule } from '@/lib/types';
+import type { Activity, Category, Habit, HabitSlot, HabitCompletions } from '@/lib/types';
 import { useTranslations } from '@/contexts/language-context';
 import {
   format,
@@ -18,6 +18,7 @@ import {
   endOfMonth,
   startOfWeek,
   endOfWeek,
+  eachDayOfInterval,
   eachWeekOfInterval,
   isWithinInterval,
   parseISO,
@@ -33,16 +34,19 @@ import {
   addWeeks,
   addMonths,
   getDate as getDayOfMonthFn,
-  setDate as setDayOfMonth // Added setDate
+  setDate as setDayOfMonth
 } from 'date-fns';
 import { enUS, es, fr } from 'date-fns/locale';
-import { ArrowLeft, LayoutDashboard, ListChecks, BarChart3, CheckCircle, Circle, TrendingUp, LineChart, ActivityIcon, Flame, Package, TrendingDown } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, ListChecks, BarChart3, CheckCircle, Circle, TrendingUp, LineChart, ActivityIcon, Flame, Package, TrendingDown, Brain } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { v4 as uuidv4 } from 'uuid';
 import dynamic from 'next/dynamic';
+import ActivityListItem from '@/components/calendar/activity-list-item'; // Re-use for dashboard list
+import HabitListItem from '@/components/calendar/habit-list-item'; // Re-use for dashboard list
+
 
 const BarChart = dynamic(() => import('@/components/ui/chart').then(mod => mod.BarChart), {
   loading: () => <Skeleton className="h-[350px] w-full" />,
@@ -56,8 +60,15 @@ type ProductivityViewTimeRange = 'last7days' | 'currentMonth';
 type DashboardMainView = 'chart' | 'list' | 'productivity';
 
 
-// Helper to generate instances for dashboard calculations
-function generateDashboardInstances(
+interface ProcessedHabitSlotOccurrence {
+  habit: Habit;
+  slot: HabitSlot;
+  date: Date;
+  isCompleted: boolean;
+}
+
+// Helper to generate activity instances for dashboard calculations
+function generateDashboardActivityInstances(
   masterActivity: Activity,
   viewStartDate: Date,
   viewEndDate: Date
@@ -103,7 +114,6 @@ function generateDashboardInstances(
       }
   }
 
-
   const seriesEndDate = recurrence.endDate ? new Date(recurrence.endDate) : null;
   let iterations = 0;
   const maxIterations = 366 * 2; 
@@ -126,7 +136,7 @@ function generateDashboardInstances(
                 }
                 currentDate = nextIterationDate;
             } else {
-                currentDate = addDaysFns(currentDate, 1); // Fallback if dayOfMonth is not set
+                currentDate = addDaysFns(currentDate, 1); 
             }
         } else break;
         continue;
@@ -187,37 +197,74 @@ function generateDashboardInstances(
   return instances;
 }
 
+// Helper to generate habit slot occurrences for a range
+function generateHabitSlotOccurrencesForRange(
+  allHabits: Habit[],
+  allHabitCompletions: HabitCompletions,
+  rangeStartDate: Date,
+  rangeEndDate: Date
+): ProcessedHabitSlotOccurrence[] {
+  const occurrences: ProcessedHabitSlotOccurrence[] = [];
+  const daysInInterval = eachDayOfInterval({ start: rangeStartDate, end: rangeEndDate });
 
-// Helper to check if a specific instance is complete
-const isInstanceCompletedForDashboard = (
+  daysInInterval.forEach(day => {
+    const dateKey = formatISO(day, { representation: 'date' });
+    allHabits.forEach(habit => {
+      habit.slots.forEach(slot => {
+        const completionStatus = allHabitCompletions[habit.id]?.[dateKey]?.[slot.id];
+        occurrences.push({
+          habit,
+          slot,
+          date: day,
+          isCompleted: !!completionStatus?.completed,
+        });
+      });
+    });
+  });
+  return occurrences;
+}
+
+// Helper to check if a specific activity instance is complete
+const isActivityInstanceCompleted = (
   instance: Activity,
-  rawMasterActivitiesList: Activity[] // Pass the list of master activities
+  rawMasterActivitiesList: Activity[]
 ): boolean => {
   if (!instance.isRecurringInstance && instance.originalInstanceDate === instance.createdAt) {
-    // For non-recurring master activities, its 'completed' status is already derived from its main occurrence.
     return !!instance.completed;
   }
-  
-  // For a recurring instance, or potentially a non-recurring master that somehow got here without originalInstanceDate set
   const masterActivity = rawMasterActivitiesList.find(ma => ma.id === instance.masterActivityId);
-  if (!masterActivity) {
-    console.warn(`Dashboard: Master activity with ID ${instance.masterActivityId} not found for instance.`);
-    return false;
-  }
-
+  if (!masterActivity) return false;
   if (instance.originalInstanceDate) {
     const occurrenceDateKey = formatISO(new Date(instance.originalInstanceDate), { representation: 'date' });
     return !!masterActivity.completedOccurrences?.[occurrenceDateKey];
   }
-
-  // Fallback for safety, though should ideally not be reached if instance.originalInstanceDate is always set
   return !!instance.completed;
 };
 
+type DashboardItemBase = {
+  id: string;
+  originalDate: Date;
+  title: string;
+  displayTime?: string;
+};
+type ActivityDashboardItem = DashboardItemBase & {
+  type: 'activity';
+  item: Activity; // The instance
+  category?: Category;
+  isCompleted: boolean;
+};
+type HabitDashboardItem = DashboardItemBase & {
+  type: 'habit';
+  item: ProcessedHabitSlotOccurrence;
+  isCompleted: boolean;
+};
+type DashboardDisplayItem = ActivityDashboardItem | HabitDashboardItem;
+
 
 export default function DashboardPage() {
-  const { getRawActivities, getCategoryById } = useAppStore();
+  const { getRawActivities, getCategoryById, habits, habitCompletions, toggleHabitSlotCompletion, deleteActivity, toggleOccurrenceCompletion } = useAppStore();
   const { t, locale } = useTranslations();
+  const router = useRouter(); // For ActivityListItem onEdit
   const [chartViewMode, setChartViewMode] = useState<ChartViewMode>('weekly');
   const [listViewTimeRange, setListViewTimeRange] = useState<ListViewTimeRange>('last7days');
   const [productivityViewTimeRange, setProductivityViewTimeRange] = useState<ProductivityViewTimeRange>('last7days');
@@ -241,25 +288,30 @@ export default function DashboardPage() {
         const dayStart = startOfDay(currentDateForChart);
         const dayEnd = endOfDay(currentDateForChart);
         
-        let totalInstancesThisDay = 0;
-        let completedInstancesThisDay = 0;
-
+        let totalActivitiesThisDay = 0;
+        let completedActivitiesThisDay = 0;
         rawMasterActivities.forEach(masterActivity => {
-          const instances = generateDashboardInstances(masterActivity, dayStart, dayEnd);
+          const instances = generateDashboardActivityInstances(masterActivity, dayStart, dayEnd);
           instances.forEach(instance => {
             if (instance.originalInstanceDate && isSameDay(new Date(instance.originalInstanceDate), currentDateForChart)) {
-              totalInstancesThisDay++;
-              if (isInstanceCompletedForDashboard(instance, rawMasterActivities)) {
-                completedInstancesThisDay++;
+              totalActivitiesThisDay++;
+              if (isActivityInstanceCompleted(instance, rawMasterActivities)) {
+                completedActivitiesThisDay++;
               }
             }
           });
         });
+
+        const habitSlotsThisDay = generateHabitSlotOccurrencesForRange(habits, habitCompletions, dayStart, dayEnd);
+        const totalHabitSlotsThisDay = habitSlotsThisDay.length;
+        const completedHabitSlotsThisDay = habitSlotsThisDay.filter(hs => hs.isCompleted).length;
         
         return {
           name: format(currentDateForChart, 'E', { locale: dateLocale }),
-          total: totalInstancesThisDay,
-          completed: completedInstancesThisDay,
+          totalActivities: totalActivitiesThisDay,
+          completedActivities: completedActivitiesThisDay,
+          totalHabitSlots: totalHabitSlotsThisDay,
+          completedHabitSlots: completedHabitSlotsThisDay,
         };
       });
     } else { // monthly
@@ -267,7 +319,6 @@ export default function DashboardPage() {
       const firstDayOfMonth = startOfMonth(currentMonth);
       const lastDayOfMonth = endOfMonth(currentMonth);
       const weekStartsOn = dateLocale.options?.weekStartsOn ?? 0;
-
       const weeksInMonth = eachWeekOfInterval(
         { start: firstDayOfMonth, end: lastDayOfMonth },
         { locale: dateLocale, weekStartsOn: weekStartsOn as 0 | 1 | 2 | 3 | 4 | 5 | 6 }
@@ -277,44 +328,41 @@ export default function DashboardPage() {
         const actualWeekStart = startOfWeek(weekStartDateInLoop, { locale: dateLocale, weekStartsOn: weekStartsOn as 0 | 1 | 2 | 3 | 4 | 5 | 6 });
         const actualWeekEnd = endOfWeek(weekStartDateInLoop, { locale: dateLocale, weekStartsOn: weekStartsOn as 0 | 1 | 2 | 3 | 4 | 5 | 6 });
         
-        let totalInstancesThisWeek = 0;
-        let completedInstancesThisWeek = 0;
-
+        let totalActivitiesThisWeek = 0;
+        let completedActivitiesThisWeek = 0;
         rawMasterActivities.forEach(masterActivity => {
-          const instances = generateDashboardInstances(masterActivity, actualWeekStart, actualWeekEnd);
+          const instances = generateDashboardActivityInstances(masterActivity, actualWeekStart, actualWeekEnd);
           instances.forEach(instance => {
-            totalInstancesThisWeek++;
-            if (isInstanceCompletedForDashboard(instance, rawMasterActivities)) {
-              completedInstancesThisWeek++;
+            totalActivitiesThisWeek++;
+            if (isActivityInstanceCompleted(instance, rawMasterActivities)) {
+              completedActivitiesThisWeek++;
             }
           });
         });
 
+        const habitSlotsThisWeek = generateHabitSlotOccurrencesForRange(habits, habitCompletions, actualWeekStart, actualWeekEnd);
+        const totalHabitSlotsThisWeek = habitSlotsThisWeek.length;
+        const completedHabitSlotsThisWeek = habitSlotsThisWeek.filter(hs => hs.isCompleted).length;
+
         return {
           name: `${t('dashboardWeekLabel')}${index + 1}`,
-          total: totalInstancesThisWeek,
-          completed: completedInstancesThisWeek,
+          totalActivities: totalActivitiesThisWeek,
+          completedActivities: completedActivitiesThisWeek,
+          totalHabitSlots: totalHabitSlotsThisWeek,
+          completedHabitSlots: completedHabitSlotsThisWeek,
         };
       });
     }
-  }, [getRawActivities, chartViewMode, dateLocale, t, hasMounted]);
+  }, [getRawActivities, habits, habitCompletions, chartViewMode, dateLocale, t, hasMounted]);
 
   const chartBars: ChartBarProps[] = [
-    {
-      dataKey: 'total',
-      fillVariable: '--chart-1',
-      nameKey: 'dashboardChartTotalActivities',
-      radius: [4,4,0,0]
-    },
-    {
-      dataKey: 'completed',
-      fillVariable: '--chart-2',
-      nameKey: 'dashboardChartCompletedActivities',
-      radius: [4,4,0,0]
-    },
+    { dataKey: 'totalActivities', fillVariable: '--chart-1', nameKey: 'dashboardChartTotalActivities', radius: [4,4,0,0]},
+    { dataKey: 'completedActivities', fillVariable: '--chart-2', nameKey: 'dashboardChartCompletedActivities', radius: [4,4,0,0]},
+    { dataKey: 'totalHabitSlots', fillVariable: '--chart-3', nameKey: 'dashboardChartTotalHabits', radius: [4,4,0,0]},
+    { dataKey: 'completedHabitSlots', fillVariable: '--chart-4', nameKey: 'dashboardChartCompletedHabits', radius: [4,4,0,0]},
   ];
 
-  const listedActivities = useMemo(() => {
+  const listedItems = useMemo((): DashboardDisplayItem[] => {
     if (!hasMounted) return [];
     const rawMasterActivities = getRawActivities();
     const now = new Date();
@@ -328,17 +376,63 @@ export default function DashboardPage() {
       rangeEndDate = endOfDay(endOfMonth(now));
     }
 
-    let allInstancesInRange: Activity[] = [];
+    let allDisplayItems: DashboardDisplayItem[] = [];
+
+    // Process Activities
     rawMasterActivities.forEach(masterActivity => {
-      allInstancesInRange.push(...generateDashboardInstances(masterActivity, rangeStartDate, rangeEndDate));
+      generateDashboardActivityInstances(masterActivity, rangeStartDate, rangeEndDate)
+        .forEach(instance => {
+          allDisplayItems.push({
+            type: 'activity',
+            id: `activity-${instance.id}`,
+            originalDate: new Date(instance.originalInstanceDate || instance.createdAt),
+            title: instance.title,
+            displayTime: instance.time,
+            item: instance,
+            category: getCategoryById(instance.categoryId),
+            isCompleted: isActivityInstanceCompleted(instance, rawMasterActivities),
+          });
+        });
     });
 
-    return allInstancesInRange.sort((a, b) => (b.originalInstanceDate || b.createdAt) - (a.originalInstanceDate || a.createdAt));
-  }, [getRawActivities, listViewTimeRange, hasMounted]);
+    // Process Habits
+    generateHabitSlotOccurrencesForRange(habits, habitCompletions, rangeStartDate, rangeEndDate)
+      .forEach(slotOccurrence => {
+        allDisplayItems.push({
+          type: 'habit',
+          id: `habit-${slotOccurrence.habit.id}-slot-${slotOccurrence.slot.id}-${slotOccurrence.date.getTime()}`,
+          originalDate: slotOccurrence.date,
+          title: `${slotOccurrence.habit.name} - ${slotOccurrence.slot.name}`,
+          displayTime: slotOccurrence.slot.default_time,
+          item: slotOccurrence,
+          isCompleted: slotOccurrence.isCompleted,
+        });
+      });
+
+    return allDisplayItems.sort((a, b) => {
+      const dateDiff = a.originalDate.getTime() - b.originalDate.getTime();
+      if (dateDiff !== 0) return dateDiff;
+      
+      const timeA = a.displayTime ? parseInt(a.displayTime.replace(':', ''), 10) : (a.type === 'activity' ? -1 : Infinity) ; // Activities without time first, then habits without time
+      const timeB = b.displayTime ? parseInt(b.displayTime.replace(':', ''), 10) : (b.type === 'activity' ? -1 : Infinity) ;
+      if (timeA !== timeB) return timeA - timeB;
+
+      return a.title.localeCompare(b.title);
+    });
+  }, [getRawActivities, habits, habitCompletions, listViewTimeRange, hasMounted, getCategoryById]);
 
 
   const productivityData = useMemo(() => {
-    if (!hasMounted) return { categoryChartData: [], overallCompletionRate: 0, totalActivitiesInPeriod: 0, totalCompletedInPeriod: 0, dayOfWeekCompletions: [] as BarChartDataItem[], peakProductivityDays: [] as string[], daysWithMostFailures: [] as string[] };
+    if (!hasMounted) return {
+        activityCategoryChartData: [],
+        habitPerformanceChartData: [],
+        overallCompletionRate: 0,
+        totalScheduledItems: 0,
+        totalCompletedItems: 0,
+        dayOfWeekCompletions: [] as BarChartDataItem[],
+        peakProductivityDays: [] as string[],
+        daysWithMostFailures: [] as string[]
+    };
     
     const rawMasterActivities = getRawActivities();
     const now = new Date();
@@ -352,44 +446,53 @@ export default function DashboardPage() {
       rangeEndDateFilter = endOfDay(endOfMonth(now));
     }
 
-    let relevantInstances: Activity[] = [];
+    let relevantActivityInstances: Activity[] = [];
     rawMasterActivities.forEach(masterActivity => {
-      relevantInstances.push(...generateDashboardInstances(masterActivity, rangeStartDateFilter, rangeEndDateFilter));
+      relevantActivityInstances.push(...generateDashboardActivityInstances(masterActivity, rangeStartDateFilter, rangeEndDateFilter));
     });
+    const relevantHabitSlots = generateHabitSlotOccurrencesForRange(habits, habitCompletions, rangeStartDateFilter, rangeEndDateFilter);
     
-    const completedInstancesInPeriod = relevantInstances.filter(instance => isInstanceCompletedForDashboard(instance, rawMasterActivities));
-    const totalActivitiesInPeriod = relevantInstances.length;
-    const totalCompletedInPeriod = completedInstancesInPeriod.length;
+    const completedActivityInstances = relevantActivityInstances.filter(instance => isActivityInstanceCompleted(instance, rawMasterActivities));
+    const completedHabitSlots = relevantHabitSlots.filter(hs => hs.isCompleted);
 
-    const overallCompletionRate = totalActivitiesInPeriod > 0
-      ? (totalCompletedInPeriod / totalActivitiesInPeriod) * 100
+    const totalScheduledItems = relevantActivityInstances.length + relevantHabitSlots.length;
+    const totalCompletedItems = completedActivityInstances.length + completedHabitSlots.length;
+
+    const overallCompletionRate = totalScheduledItems > 0
+      ? (totalCompletedItems / totalScheduledItems) * 100
       : 0;
 
-    const categoryCounts: Record<string, number> = {};
+    const activityCategoryCounts: Record<string, number> = {};
+    completedActivityInstances.forEach(instance => {
+      const category = getCategoryById(instance.categoryId);
+      const categoryName = category ? category.name : "Uncategorized";
+      activityCategoryCounts[categoryName] = (activityCategoryCounts[categoryName] || 0) + 1;
+    });
+    const activityCategoryChartData: BarChartDataItem[] = Object.entries(activityCategoryCounts).map(([name, count]) => ({ name, count }));
+    
+    const habitPerformanceCounts: Record<string, number> = {};
+    completedHabitSlots.forEach(hs => {
+        habitPerformanceCounts[hs.habit.name] = (habitPerformanceCounts[hs.habit.name] || 0) + 1;
+    });
+    const habitPerformanceChartData: BarChartDataItem[] = Object.entries(habitPerformanceCounts).map(([name, count]) => ({name, count}));
+
+
     const dayOfWeekData: Record<string, { total: number, completed: number, incomplete: number }> = {};
     const dayIndexToName = (dayIndex: number) => [t('daySun'), t('dayMon'), t('dayTue'), t('dayWed'), t('dayThu'), t('dayFri'), t('daySat')][dayIndex];
     
-    // Initialize dayOfWeekData
     for (let i = 0; i < 7; i++) {
         const dayName = dayIndexToName(i);
         dayOfWeekData[dayName] = { total: 0, completed: 0, incomplete: 0 };
     }
 
-
-    completedInstancesInPeriod.forEach(instance => {
-      const category = getCategoryById(instance.categoryId);
-      const categoryName = category ? category.name : "Uncategorized";
-      categoryCounts[categoryName] = (categoryCounts[categoryName] || 0) + 1;
-    });
-    
-    relevantInstances.forEach(instance => {
+    relevantActivityInstances.forEach(instance => {
         if (instance.originalInstanceDate) {
             const instanceDate = new Date(instance.originalInstanceDate);
             if (isWithinInterval(instanceDate, { start: rangeStartDateFilter, end: rangeEndDateFilter })) {
                 const dayName = dayIndexToName(getDayOfWeekFn(instanceDate));
                  if (dayName && dayOfWeekData[dayName]) {
                     dayOfWeekData[dayName].total++;
-                    if(isInstanceCompletedForDashboard(instance, rawMasterActivities)){
+                    if(isActivityInstanceCompleted(instance, rawMasterActivities)){
                         dayOfWeekData[dayName].completed++;
                     } else {
                         dayOfWeekData[dayName].incomplete++;
@@ -398,17 +501,19 @@ export default function DashboardPage() {
             }
         }
     });
+    relevantHabitSlots.forEach(hs => {
+        const dayName = dayIndexToName(getDayOfWeekFn(hs.date));
+        if (dayName && dayOfWeekData[dayName]) {
+            dayOfWeekData[dayName].total++; // Assuming all habit slots in range are "scheduled"
+            if (hs.isCompleted) {
+                dayOfWeekData[dayName].completed++;
+            } else {
+                dayOfWeekData[dayName].incomplete++;
+            }
+        }
+    });
 
-
-    const categoryChartData: BarChartDataItem[] = Object.entries(categoryCounts).map(([name, count]) => ({
-      name,
-      count,
-    }));
-
-    const dayOfWeekCompletionsChartData: BarChartDataItem[] = Object.entries(dayOfWeekData).map(([name, data]) => ({
-      name,
-      count: data.completed, 
-    }));
+    const dayOfWeekCompletionsChartData: BarChartDataItem[] = Object.entries(dayOfWeekData).map(([name, data]) => ({ name, count: data.completed }));
     
     let peakDays: string[] = [];
     let maxCompletions = 0;
@@ -425,7 +530,7 @@ export default function DashboardPage() {
     let daysWithMostFailures: string[] = [];
     let maxIncomplete = 0;
     Object.entries(dayOfWeekData).forEach(([dayName, data]) => {
-        if (data.incomplete > 0) { // Only consider days with actual incomplete tasks
+        if (data.incomplete > 0) {
             if (data.incomplete > maxIncomplete) {
                 maxIncomplete = data.incomplete;
                 daysWithMostFailures = [dayName];
@@ -435,83 +540,137 @@ export default function DashboardPage() {
         }
     });
 
-
     return {
-      categoryChartData,
+      activityCategoryChartData,
+      habitPerformanceChartData,
       overallCompletionRate,
-      totalActivitiesInPeriod,
-      totalCompletedInPeriod,
+      totalScheduledItems,
+      totalCompletedItems,
       dayOfWeekCompletions: dayOfWeekCompletionsChartData, 
       peakProductivityDays: peakDays,
       daysWithMostFailures,
     };
-  }, [getRawActivities, productivityViewTimeRange, hasMounted, getCategoryById, t, dateLocale]);
+  }, [getRawActivities, habits, habitCompletions, productivityViewTimeRange, hasMounted, getCategoryById, t]);
 
   const streakData = useMemo(() => {
     if (!hasMounted) return { currentStreak: 0, longestStreak: 0 };
+    
     const rawMasterActivities = getRawActivities();
-    const completionDates = new Set<string>(); 
+    const allDaysWithScheduledItems = new Map<string, { activities: Activity[], habitSlots: ProcessedHabitSlotOccurrence[], allActivitiesCompleted: boolean, allHabitsCompleted: boolean }>();
 
-    rawMasterActivities.forEach(masterActivity => {
-      if (masterActivity.completedOccurrences) {
-        Object.keys(masterActivity.completedOccurrences).forEach(dateKey => {
-          if (masterActivity.completedOccurrences![dateKey]) {
-            completionDates.add(dateKey);
-          }
-        });
-      }
-      if ((!masterActivity.recurrence || masterActivity.recurrence.type === 'none') && masterActivity.completed && masterActivity.completedAt) {
-         completionDates.add(formatISO(new Date(masterActivity.completedAt), { representation: 'date' }));
-      }
+    // Iterate through a relevant period (e.g., last year to today)
+    const todayForStreak = startOfDay(new Date());
+    const oneYearAgo = startOfDay(subDays(todayForStreak, 365)); // Look back up to a year for streaks
+
+    eachDayOfInterval({ start: oneYearAgo, end: todayForStreak }).forEach(day => {
+        const dateKey = formatISO(day, {representation: 'date'});
+        
+        const activityInstancesToday = rawMasterActivities.flatMap(master => 
+            generateDashboardActivityInstances(master, day, endOfDay(day))
+        );
+        const habitSlotsToday = generateHabitSlotOccurrencesForRange(habits, habitCompletions, day, endOfDay(day));
+
+        if (activityInstancesToday.length > 0 || habitSlotsToday.length > 0) {
+            const allActsCompleted = activityInstancesToday.every(act => isActivityInstanceCompleted(act, rawMasterActivities));
+            const allHabsCompleted = habitSlotsToday.every(hs => hs.isCompleted);
+            allDaysWithScheduledItems.set(dateKey, {
+                activities: activityInstancesToday,
+                habitSlots: habitSlotsToday,
+                allActivitiesCompleted: allActsCompleted,
+                allHabitsCompleted: allHabsCompleted
+            });
+        }
     });
 
-    if (completionDates.size === 0) return { currentStreak: 0, longestStreak: 0 };
+    if (allDaysWithScheduledItems.size === 0) return { currentStreak: 0, longestStreak: 0 };
 
-    const sortedCompletionDates = Array.from(completionDates).map(dateStr => parseISO(dateStr)).sort((a,b) => a.getTime() - b.getTime());
+    const sortedCompletionDayKeys = Array.from(allDaysWithScheduledItems.keys())
+      .filter(dateKey => {
+          const dayData = allDaysWithScheduledItems.get(dateKey)!;
+          // A day is "streak-worthy" if there was anything scheduled AND everything scheduled was completed
+          const hasScheduledItems = dayData.activities.length > 0 || dayData.habitSlots.length > 0;
+          const allItemsCompleted = dayData.allActivitiesCompleted && dayData.allHabitsCompleted;
+          return hasScheduledItems && allItemsCompleted;
+      })
+      .map(dateStr => parseISO(dateStr))
+      .sort((a,b) => a.getTime() - b.getTime());
     
-    let currentStreak = 0;
-    let longestStreak = 0;
+    if (sortedCompletionDayKeys.length === 0) return { currentStreak: 0, longestStreak: 0 };
+
+    let currentStreakVal = 0;
+    let longestStreakVal = 0;
     let tempStreak = 0;
 
-    for (let i = 0; i < sortedCompletionDates.length; i++) {
-      if (i === 0 || differenceInCalendarDays(sortedCompletionDates[i], sortedCompletionDates[i-1]) === 1) {
+    for (let i = 0; i < sortedCompletionDayKeys.length; i++) {
+      if (i === 0 || differenceInCalendarDays(sortedCompletionDayKeys[i], sortedCompletionDayKeys[i-1]) === 1) {
         tempStreak++;
-      } else if (differenceInCalendarDays(sortedCompletionDates[i], sortedCompletionDates[i-1]) > 1) { 
-        longestStreak = Math.max(longestStreak, tempStreak);
+      } else if (differenceInCalendarDays(sortedCompletionDayKeys[i], sortedCompletionDayKeys[i-1]) > 1) { 
+        longestStreakVal = Math.max(longestStreakVal, tempStreak);
         tempStreak = 1; 
       }
     }
-    longestStreak = Math.max(longestStreak, tempStreak);
-
-    const today = startOfDay(new Date());
-    const yesterday = startOfDay(subDays(today,1));
+    longestStreakVal = Math.max(longestStreakVal, tempStreak);
     
-    let streakDayCandidate = today;
-    if (completionDates.has(formatISO(today, {representation: 'date'}))) {
-        streakDayCandidate = today;
-    } else if (completionDates.has(formatISO(yesterday, {representation: 'date'}))) {
-        streakDayCandidate = yesterday;
-    } else { 
-        return { currentStreak: 0, longestStreak };
-    }
+    const todayDateKey = formatISO(todayForStreak, {representation: 'date'});
+    const yesterdayDateKey = formatISO(subDays(todayForStreak, 1), {representation: 'date'});
 
-    let currentTempStreak = 0;
-    for (let i = sortedCompletionDates.length - 1; i >= 0; i--) {
-        if (isSameDay(sortedCompletionDates[i], streakDayCandidate)) {
+    let streakDayCandidate = todayForStreak;
+
+    const isDayStreakWorthyCompleted = (date: Date): boolean => {
+        const key = formatISO(date, {representation: 'date'});
+        const dayData = allDaysWithScheduledItems.get(key);
+        if (!dayData) return false; // No scheduled items, doesn't count for streak
+        return (dayData.activities.length > 0 || dayData.habitSlots.length > 0) &&
+               dayData.allActivitiesCompleted && dayData.allHabitsCompleted;
+    };
+
+    if (!isDayStreakWorthyCompleted(todayForStreak) && !isDayStreakWorthyCompleted(subDays(todayForStreak,1))) {
+        currentStreakVal = 0; // Neither today nor yesterday was completed perfectly for streak
+    } else {
+        let currentTempStreak = 0;
+        let checkDate = isDayStreakWorthyCompleted(todayForStreak) ? todayForStreak : subDays(todayForStreak,1);
+        
+        while(isDayStreakWorthyCompleted(checkDate)){
             currentTempStreak++;
-            streakDayCandidate = subDays(streakDayCandidate, 1);
-        } else if (isBefore(sortedCompletionDates[i], streakDayCandidate)) {
-            break;
+            checkDate = subDays(checkDate,1);
         }
+        currentStreakVal = currentTempStreak;
     }
-    currentStreak = currentTempStreak;
 
-    return { currentStreak, longestStreak };
-  }, [getRawActivities, hasMounted]);
+    return { currentStreak: currentStreakVal, longestStreak: longestStreakVal };
+  }, [getRawActivities, habits, habitCompletions, hasMounted]);
 
 
-  const categoryChartBars: ChartBarProps[] = [ { dataKey: 'count', fillVariable: '--chart-3', nameKey: 'dashboardActivityCountLabel', radius: [4,4,0,0] } ];
-  const dayOfWeekChartBars: ChartBarProps[] = [ { dataKey: 'count', fillVariable: '--chart-4', nameKey: 'dashboardCompletionsChartLabel', radius: [4,4,0,0] } ];
+  const activityCategoryChartBars: ChartBarProps[] = [ { dataKey: 'count', fillVariable: '--chart-1', nameKey: 'dashboardActivityCountLabel', radius: [4,4,0,0] } ];
+  const habitPerformanceChartBars: ChartBarProps[] = [ { dataKey: 'count', fillVariable: '--chart-5', nameKey: 'dashboardHabitCompletionsLabel', radius: [4,4,0,0] } ]; // New nameKey
+  const dayOfWeekChartBars: ChartBarProps[] = [ { dataKey: 'count', fillVariable: '--chart-2', nameKey: 'dashboardCompletionsChartLabel', radius: [4,4,0,0] } ];
+
+
+  // Handler for editing an activity (used by ActivityListItem)
+  const handleEditActivity = (activityInstanceOrMaster: Activity) => {
+    const rawActs = getRawActivities();
+    const masterAct = activityInstanceOrMaster.masterActivityId
+      ? rawActs.find(a => a.id === activityInstanceOrMaster.masterActivityId)
+      : activityInstanceOrMaster;
+
+    if (masterAct) {
+      let url = `/activity-editor?id=${masterAct.id}`;
+      if (activityInstanceOrMaster.isRecurringInstance && activityInstanceOrMaster.originalInstanceDate) {
+        url += `&instanceDate=${activityInstanceOrMaster.originalInstanceDate}`;
+      }
+      router.push(url);
+    }
+  };
+  
+  const handleDeleteActivity = async (activityToDelete: Activity) => {
+    if (activityToDelete) {
+      const masterActivityId = activityToDelete.masterActivityId || activityToDelete.id;
+      // Call appStore deleteActivity, which handles backend and state update
+      await deleteActivity(masterActivityId);
+      // The list will re-render due to state change in AppProvider
+    }
+  };
+
 
   if (!hasMounted) {
     return (
@@ -582,7 +741,7 @@ export default function DashboardPage() {
                   <TabsTrigger value="monthly">{t('dashboardViewMonthly')}</TabsTrigger>
                 </TabsList>
               </Tabs>
-              {chartData.length > 0 && chartData.some(d => d.total > 0 || d.completed > 0) ? (
+              {chartData.length > 0 && chartData.some(d => d.totalActivities > 0 || d.completedActivities > 0 || d.totalHabitSlots > 0 || d.completedHabitSlots > 0) ? (
                  <BarChart data={chartData} bars={chartBars} xAxisDataKey="name" />
               ) : (
                 <div className="flex items-center justify-center h-[350px] text-muted-foreground">
@@ -600,52 +759,42 @@ export default function DashboardPage() {
                   <TabsTrigger value="currentMonth">{t('dashboardListCurrentMonth')}</TabsTrigger>
                 </TabsList>
               </Tabs>
-              {listedActivities.length > 0 ? (
+              {listedItems.length > 0 ? (
                 <ScrollArea className="h-[400px] pr-4">
                   <div className="space-y-3">
-                    {listedActivities.map(instance => {
-                      const rawMasterActivities = getRawActivities();
-                      const masterActivity = rawMasterActivities.find(ma => ma.id === instance.masterActivityId) || instance;
-                      const category = getCategoryById(masterActivity.categoryId);
-                      const isCompleted = isInstanceCompletedForDashboard(instance, rawMasterActivities);
-                      const displayDate = instance.originalInstanceDate ? new Date(instance.originalInstanceDate) : new Date(masterActivity.createdAt);
-                      
-                      return (
-                        <Card key={instance.id} className={cn("shadow-sm", isCompleted && "opacity-70")}>
-                          <CardHeader className="py-3 px-4">
-                            <div className="flex justify-between items-start">
-                              <CardTitle className={cn("text-md", isCompleted && "line-through text-muted-foreground")}>
-                                {masterActivity.title}
-                              </CardTitle>
-                              {isCompleted ? <CheckCircle className="h-5 w-5 text-green-500" /> : <Circle className="h-5 w-5 text-muted-foreground" />}
-                            </div>
-                            <CardDescription className="text-xs">
-                              {format(displayDate, 'PPp', { locale: dateLocale })}
-                              {masterActivity.time && ` - ${masterActivity.time}`}
-                            </CardDescription>
-                          </CardHeader>
-                          {(category || (masterActivity.todos && masterActivity.todos.length > 0)) && (
-                            <CardContent className="py-2 px-4">
-                              {category && (
-                                <Badge variant="secondary" className="text-xs">
-                                  {category.icon && <category.icon className="mr-1 h-3 w-3" />}
-                                  {category.name}
-                                </Badge>
-                              )}
-                              {masterActivity.todos && masterActivity.todos.length > 0 && (
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {t('todosCompleted', { completed: masterActivity.todos.filter(t => t.completed).length, total: masterActivity.todos.length})}
-                                </p>
-                              )}
-                            </CardContent>
-                          )}
-                           {masterActivity.notes && (
-                            <CardFooter className="text-xs text-muted-foreground py-2 px-4 border-t">
-                                <p className="truncate" title={masterActivity.notes}>{t('dashboardNotesLabel')}: {masterActivity.notes}</p>
-                            </CardFooter>
-                           )}
-                        </Card>
-                      );
+                    {listedItems.map(dashboardItem => {
+                      if (dashboardItem.type === 'activity') {
+                        const activityItem = dashboardItem as ActivityDashboardItem;
+                        return (
+                          <ActivityListItem
+                            key={activityItem.id}
+                            activity={activityItem.item}
+                            category={activityItem.category}
+                            onEdit={() => handleEditActivity(activityItem.item)}
+                            onDelete={async () => await handleDeleteActivity(activityItem.item)}
+                            showDate={true} // Always show date in dashboard list
+                            instanceDate={activityItem.originalDate}
+                          />
+                        );
+                      } else { // habit
+                        const habitItem = dashboardItem as HabitDashboardItem;
+                        return (
+                           <Card key={habitItem.id} className={cn("shadow-sm p-0", habitItem.isCompleted && "opacity-70")}>
+                             <HabitListItem
+                                habit={habitItem.item.habit}
+                                slot={habitItem.item.slot}
+                                date={habitItem.originalDate}
+                                completionStatus={{completed: habitItem.isCompleted, completionId: undefined /* Not needed for display toggle */}}
+                                onToggleCompletion={(completed) => {
+                                  const dateKey = formatISO(habitItem.originalDate, { representation: 'date' });
+                                  // Find existing completion to pass for toggling
+                                  const existingCompletion = habitCompletions[habitItem.item.habit.id]?.[dateKey]?.[habitItem.item.slot.id];
+                                  toggleHabitSlotCompletion(habitItem.item.habit.id, habitItem.item.slot.id, dateKey, existingCompletion);
+                                }}
+                              />
+                           </Card>
+                        );
+                      }
                     })}
                   </div>
                 </ScrollArea>
@@ -682,7 +831,7 @@ export default function DashboardPage() {
                         <span className="text-sm font-medium">{t('dashboardLongestStreak')}:</span>
                         <span className="text-lg font-semibold text-primary">{t('dashboardStreakDays', {count: streakData.longestStreak})}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground pt-2">{t('dashboardStreakInsight')}</p>
+                     <p className="text-xs text-muted-foreground pt-2">{t('dashboardStreakInsightCombined')}</p>
                 </CardContent>
               </Card>
 
@@ -699,14 +848,14 @@ export default function DashboardPage() {
                     <span className="text-lg font-semibold text-primary">{productivityData.overallCompletionRate.toFixed(1)}%</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">{t('dashboardTotalActivitiesLabel')}</span>
-                    <span className="text-sm font-medium">{productivityData.totalActivitiesInPeriod}</span>
+                    <span className="text-sm text-muted-foreground">{t('dashboardTotalScheduledItemsLabel')}</span>
+                    <span className="text-sm font-medium">{productivityData.totalScheduledItems}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">{t('dashboardTotalCompletedLabel')}</span>
-                    <span className="text-sm font-medium">{productivityData.totalCompletedInPeriod}</span>
+                    <span className="text-sm text-muted-foreground">{t('dashboardTotalCompletedItemsLabel')}</span>
+                    <span className="text-sm font-medium">{productivityData.totalCompletedItems}</span>
                   </div>
-                   {productivityData.totalActivitiesInPeriod === 0 && (
+                   {productivityData.totalScheduledItems === 0 && (
                      <p className="text-sm text-muted-foreground text-center pt-4">{t('dashboardNoDataForAnalysis')}</p>
                    )}
                 </CardContent>
@@ -738,7 +887,7 @@ export default function DashboardPage() {
                   <CardTitle className="flex items-center gap-2"><TrendingDown className="h-5 w-5 text-destructive" /> {t('dashboardFailureAnalysisTitle')}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {productivityData.totalActivitiesInPeriod > 0 ? (
+                  {productivityData.totalScheduledItems > 0 ? (
                     productivityData.daysWithMostFailures.length > 0 ? (
                       <p className="text-sm text-center">
                         {t('dashboardFailureAnalysisMostIncomplete', { days: productivityData.daysWithMostFailures.join(', ') })}
@@ -761,12 +910,26 @@ export default function DashboardPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><ActivityIcon className="h-5 w-5" /> {t('dashboardCategoryBreakdown')}</CardTitle>
+                  <CardTitle className="flex items-center gap-2"><ActivityIcon className="h-5 w-5" /> {t('dashboardActivityCategoryBreakdownTitle')}</CardTitle>
                   <CardDescription>{t('dashboardActivityCountLabel')}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {productivityData.categoryChartData.length > 0 ? (
-                    <BarChart data={productivityData.categoryChartData} bars={categoryChartBars} xAxisDataKey="name" height={300} />
+                  {productivityData.activityCategoryChartData.length > 0 ? (
+                    <BarChart data={productivityData.activityCategoryChartData} bars={activityCategoryChartBars} xAxisDataKey="name" height={300} />
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">{t('dashboardNoDataForAnalysis')}</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Brain className="h-5 w-5" /> {t('dashboardHabitPerformanceTitle')}</CardTitle>
+                  <CardDescription>{t('dashboardHabitCompletionsLabel')}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {productivityData.habitPerformanceChartData.length > 0 ? (
+                    <BarChart data={productivityData.habitPerformanceChartData} bars={habitPerformanceChartBars} xAxisDataKey="name" height={300} />
                   ) : (
                     <p className="text-sm text-muted-foreground text-center py-4">{t('dashboardNoDataForAnalysis')}</p>
                   )}
@@ -780,4 +943,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
