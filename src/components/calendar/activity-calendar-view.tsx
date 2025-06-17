@@ -114,7 +114,7 @@ function generateRecurringInstances(
         else if (recurrence.type === 'weekly') {
              currentDate = addDays(currentDate, 1);
         } else if (recurrence.type === 'monthly') {
-            currentDate = addDays(currentDate, 1);
+            currentDate = addDays(currentDate, 1); // Simplified for monthly when before master start
         }
         else break;
         continue;
@@ -141,23 +141,39 @@ function generateRecurringInstances(
       const occurrenceDateKey = formatISO(currentDate, { representation: 'date' });
       instances.push({
         ...masterActivity,
-        id: `${masterActivity.id}_${currentDate.getTime()}`,
+        id: `${masterActivity.id}_${currentDate.getTime()}`, // Unique ID for instance
         isRecurringInstance: true,
         originalInstanceDate: currentDate.getTime(),
         masterActivityId: masterActivity.id,
         completed: !!masterActivity.completedOccurrences?.[occurrenceDateKey],
-        todos: masterActivity.todos.map(todo => ({...todo, id: uuidv4(), completed: false})),
+        // For instances, todos are initially copies from the master.
+        // If backend supports per-instance todo states, this would need adjustment.
+        todos: masterActivity.todos.map(todo => ({...todo, id: uuidv4(), completed: false})), 
       });
     }
 
+    // Advance current_date based on recurrence type
     if (recurrence.type === 'daily') {
       currentDate = addDays(currentDate, 1);
     } else if (recurrence.type === 'weekly') {
-      currentDate = addDays(currentDate, 1);
+      // For weekly, just advance by one day; validity is checked by daysOfWeek
+      currentDate = addDays(currentDate, 1); 
     } else if (recurrence.type === 'monthly') {
-      currentDate = addDays(currentDate,1);
+       if (recurrence.dayOfMonth) { // Proper monthly logic
+            let nextIterationDate;
+            const currentMonthTargetDay = setDayOfMonth(currentDate, recurrence.dayOfMonth);
+            if(isAfter(currentMonthTargetDay, currentDate) && getDayOfMonthFn(currentMonthTargetDay) === recurrence.dayOfMonth){ 
+                 nextIterationDate = currentMonthTargetDay;
+            } else { 
+                 let nextMonthDate = addMonths(currentDate, 1);
+                 nextIterationDate = setDayOfMonth(nextMonthDate, recurrence.dayOfMonth);
+            }
+            currentDate = nextIterationDate;
+        } else { // Fallback if dayOfMonth is missing, just advance by one day (should not happen with valid data)
+            currentDate = addDays(currentDate, 1); 
+        }
     } else {
-      break;
+      break; // Should not happen with valid recurrence types
     }
   }
   return instances;
@@ -169,10 +185,11 @@ export default function ActivityCalendarView() {
     getRawActivities, 
     getCategoryById, 
     deleteActivity,
-    habits, // Get habits
-    habitCompletions, // Get habit completions
-    toggleHabitSlotCompletion, // Function to toggle completion
-    isLoading: isAppStoreLoading, // Use a more generic loading flag
+    habits, 
+    habitCompletions, 
+    toggleHabitSlotCompletion, 
+    isLoading: isAppStoreLoading, 
+    fetchAndSetSpecificActivityDetails,
   } = useAppStore();
   const { toast } = useToast();
   const { t, locale } = useTranslations();
@@ -211,7 +228,7 @@ export default function ActivityCalendarView() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Effect to process activities and habits for the selected view/date
+
   useEffect(() => {
     if (!selectedDate || !hasMounted || isAppStoreLoading) {
       setProcessedActivities([]);
@@ -222,10 +239,9 @@ export default function ActivityCalendarView() {
     }
 
     setIsLoadingViewData(true);
-    const rawActivities = getRawActivities();
+    const rawMasterActivitiesFromStore = getRawActivities();
+    
     let viewStartDate: Date, viewEndDate: Date;
-
-    // Determine date range for activities based on viewMode
     if (viewMode === 'daily') {
       viewStartDate = startOfDayUtil(selectedDate);
       viewEndDate = endOfDayUtil(selectedDate);
@@ -237,92 +253,138 @@ export default function ActivityCalendarView() {
       viewEndDate = endOfMonth(selectedDate);
     }
 
-    // Process Activities
-    let allDisplayActivities: Activity[] = [];
-    rawActivities.forEach(masterActivity => {
-      if (masterActivity.recurrence && masterActivity.recurrence.type !== 'none') {
-        allDisplayActivities.push(...generateRecurringInstances(masterActivity, viewStartDate, viewEndDate));
-      } else {
+    const masterActivitiesToConsiderForView: Activity[] = [];
+    const summaryActivitiesToFetchDetailsForIds: number[] = [];
+
+    rawMasterActivitiesFromStore.forEach(masterActivity => {
+      let isPotentiallyRelevant = false;
+      if (!masterActivity.recurrence || masterActivity.recurrence.type === 'none') {
         const activityDate = new Date(masterActivity.createdAt);
-         if (isWithinInterval(activityDate, { start: viewStartDate, end: viewEndDate }) || isSameDay(activityDate, viewStartDate) || isSameDay(activityDate, viewEndDate) ) {
-           allDisplayActivities.push({
-            ...masterActivity,
-            isRecurringInstance: false,
-            originalInstanceDate: masterActivity.createdAt,
-            masterActivityId: masterActivity.id,
-          });
+        if (isWithinInterval(activityDate, { start: viewStartDate, end: viewEndDate }) || isSameDay(activityDate, viewStartDate) || isSameDay(activityDate, viewEndDate)) {
+          isPotentiallyRelevant = true;
+        }
+      } else {
+        const seriesPotentiallyActive = isBefore(new Date(masterActivity.createdAt), viewEndDate) &&
+                                      (!masterActivity.recurrence.endDate || isAfter(new Date(masterActivity.recurrence.endDate), viewStartDate));
+        if (seriesPotentiallyActive) {
+          isPotentiallyRelevant = true;
+        }
+      }
+
+      if (isPotentiallyRelevant) {
+        masterActivitiesToConsiderForView.push(masterActivity);
+        if (masterActivity.isSummary) {
+          summaryActivitiesToFetchDetailsForIds.push(masterActivity.id);
         }
       }
     });
+    
+    // Define the processing logic as a separate function
+    const processAndSetViewData = (masterActivitiesForProcessing: Activity[]) => {
+        let allDisplayActivities: Activity[] = [];
+        masterActivitiesForProcessing.forEach(masterActivity => {
+          if (masterActivity.recurrence && masterActivity.recurrence.type !== 'none') {
+            allDisplayActivities.push(...generateRecurringInstances(masterActivity, viewStartDate, viewEndDate));
+          } else {
+            const activityDate = new Date(masterActivity.createdAt);
+            if (isWithinInterval(activityDate, { start: viewStartDate, end: viewEndDate }) || isSameDay(activityDate, viewStartDate) || isSameDay(activityDate, viewEndDate) ) {
+              allDisplayActivities.push({
+                ...masterActivity,
+                isRecurringInstance: false,
+                originalInstanceDate: masterActivity.createdAt,
+                masterActivityId: masterActivity.id,
+              });
+            }
+          }
+        });
 
-    if (viewMode === 'daily') {
-      allDisplayActivities = allDisplayActivities.filter(activity =>
-        activity.originalInstanceDate && isSameDay(new Date(activity.originalInstanceDate), selectedDate)
-      );
+        if (viewMode === 'daily') {
+          allDisplayActivities = allDisplayActivities.filter(activity =>
+            activity.originalInstanceDate && isSameDay(new Date(activity.originalInstanceDate), selectedDate)
+          );
+        }
+        
+        const sortedActivities = allDisplayActivities.sort((a, b) => {
+            const aIsCompleted = a.isRecurringInstance && a.originalInstanceDate
+                ? !!a.completedOccurrences?.[formatISO(new Date(a.originalInstanceDate), { representation: 'date' })]
+                : !!a.completed;
+            const bIsCompleted = b.isRecurringInstance && b.originalInstanceDate
+                ? !!b.completedOccurrences?.[formatISO(new Date(b.originalInstanceDate), { representation: 'date' })]
+                : !!b.completed;
+            if (aIsCompleted !== bIsCompleted) return aIsCompleted ? 1 : -1;
+            const aTime = a.time ? parseInt(a.time.replace(':', ''), 10) : Infinity;
+            const bTime = b.time ? parseInt(b.time.replace(':', ''), 10) : Infinity;
+            if (a.time && !b.time) return -1;
+            if (!a.time && b.time) return 1;
+            if (a.time && b.time && aTime !== bTime) return aTime - bTime;
+            const aDate = a.originalInstanceDate ? new Date(a.originalInstanceDate).getTime() : new Date(a.createdAt).getTime();
+            const bDate = b.originalInstanceDate ? new Date(b.originalInstanceDate).getTime() : new Date(b.createdAt).getTime();
+            if (aDate !== bDate) return aDate - bDate;
+            return a.title.localeCompare(b.title);
+        });
+        setProcessedActivities(sortedActivities);
+
+        const allActCompleted = sortedActivities.length > 0 && sortedActivities.every(act => {
+          const isInstanceCompleted = act.isRecurringInstance && act.originalInstanceDate
+            ? !!act.completedOccurrences?.[formatISO(new Date(act.originalInstanceDate), { representation: 'date' })]
+            : !!act.completed;
+          if (!isInstanceCompleted) return false;
+          
+          // For non-recurring, check todos from the activity itself.
+          // For recurring, check todos from the master activity (which should be full detail by now).
+          const sourceForTodos = act.isRecurringInstance && act.masterActivityId
+            ? rawMasterActivitiesFromStore.find(m => m.id === act.masterActivityId)
+            : act;
+
+          if (sourceForTodos && sourceForTodos.todos && sourceForTodos.todos.length > 0) {
+            return sourceForTodos.todos.every(todo => todo.completed);
+          }
+          return true;
+        });
+        setAllProcessedActivitiesCompleted(allActCompleted);
+
+        const tempProcessedHabitSlots: ProcessedHabitSlotDisplayItem[] = [];
+        const dateKeyForHabits = formatISO(selectedDate, { representation: 'date' });
+        habits.forEach(habit => {
+          habit.slots.forEach(slot => {
+            const completionStatus = habitCompletions[habit.id]?.[dateKeyForHabits]?.[slot.id];
+            tempProcessedHabitSlots.push({ habit, slot, date: selectedDate, completionStatus });
+          });
+        });
+        tempProcessedHabitSlots.sort((a, b) => {
+            if (a.habit.name !== b.habit.name) return a.habit.name.localeCompare(b.habit.name);
+            const aOrder = a.slot.order ?? 0;
+            const bOrder = b.slot.order ?? 0;
+            if (aOrder !== bOrder) return aOrder - bOrder;
+            if (a.slot.default_time && b.slot.default_time) return a.slot.default_time.localeCompare(b.slot.default_time);
+            if (a.slot.default_time) return -1;
+            if (b.slot.default_time) return 1;
+            return a.slot.name.localeCompare(b.slot.name);
+        });
+        setProcessedHabitSlotsForDay(tempProcessedHabitSlots);
+        setIsLoadingViewData(false);
+    };
+
+    if (summaryActivitiesToFetchDetailsForIds.length > 0) {
+      Promise.all(summaryActivitiesToFetchDetailsForIds.map(id => fetchAndSetSpecificActivityDetails(id)))
+        .then(() => {
+          // Data has been fetched and AppProvider state is updated (isSummary will be false).
+          // The effect will re-run due to getRawActivities() changing.
+          // No need to call processAndSetViewData here, the re-run will handle it.
+        })
+        .catch(error => {
+          console.error("Error fetching full activity details in calendar view:", error);
+          // If fetches fail, process with whatever data we have (potentially summary)
+          processAndSetViewData(masterActivitiesToConsiderForView);
+        });
+      return; // Exit this effect run; wait for re-run after fetches.
     }
     
-    const sortedActivities = allDisplayActivities.sort((a, b) => {
-        const aIsCompleted = a.isRecurringInstance && a.originalInstanceDate
-            ? !!a.completedOccurrences?.[formatISO(new Date(a.originalInstanceDate), { representation: 'date' })]
-            : !!a.completed;
-        const bIsCompleted = b.isRecurringInstance && b.originalInstanceDate
-            ? !!b.completedOccurrences?.[formatISO(new Date(b.originalInstanceDate), { representation: 'date' })]
-            : !!b.completed;
-        if (aIsCompleted !== bIsCompleted) return aIsCompleted ? 1 : -1;
-        const aTime = a.time ? parseInt(a.time.replace(':', ''), 10) : Infinity;
-        const bTime = b.time ? parseInt(b.time.replace(':', ''), 10) : Infinity;
-        if (a.time && !b.time) return -1;
-        if (!a.time && b.time) return 1;
-        if (a.time && b.time && aTime !== bTime) return aTime - bTime;
-        const aDate = a.originalInstanceDate ? new Date(a.originalInstanceDate).getTime() : new Date(a.createdAt).getTime();
-        const bDate = b.originalInstanceDate ? new Date(b.originalInstanceDate).getTime() : new Date(b.createdAt).getTime();
-        if (aDate !== bDate) return aDate - bDate;
-        return a.title.localeCompare(b.title);
-    });
-    setProcessedActivities(sortedActivities);
+    // If no summary activities needed fetching, process immediately.
+    processAndSetViewData(masterActivitiesToConsiderForView);
 
-    const allActCompleted = sortedActivities.length > 0 && sortedActivities.every(act => {
-      const isInstanceCompleted = act.isRecurringInstance && act.originalInstanceDate
-        ? !!act.completedOccurrences?.[formatISO(new Date(act.originalInstanceDate), { representation: 'date' })]
-        : !!act.completed;
-      if (!isInstanceCompleted) return false;
-      if (!act.isRecurringInstance && act.todos && act.todos.length > 0) {
-        return act.todos.every(todo => todo.completed);
-      }
-      return true;
-    });
-    setAllProcessedActivitiesCompleted(allActCompleted);
+  }, [getRawActivities, selectedDate, hasMounted, viewMode, dateLocale, habits, habitCompletions, isAppStoreLoading, fetchAndSetSpecificActivityDetails]);
 
-    // Process Habits for the selectedDate (regardless of viewMode for the list)
-    const tempProcessedHabitSlots: ProcessedHabitSlotDisplayItem[] = [];
-    const dateKeyForHabits = formatISO(selectedDate, { representation: 'date' });
-
-    habits.forEach(habit => {
-      habit.slots.forEach(slot => {
-        const completionStatus = habitCompletions[habit.id]?.[dateKeyForHabits]?.[slot.id];
-        tempProcessedHabitSlots.push({
-          habit,
-          slot,
-          date: selectedDate,
-          completionStatus,
-        });
-      });
-    });
-    // Sort habits/slots: by habit name, then slot order/name, then time
-    tempProcessedHabitSlots.sort((a, b) => {
-        if (a.habit.name !== b.habit.name) return a.habit.name.localeCompare(b.habit.name);
-        const aOrder = a.slot.order ?? 0;
-        const bOrder = b.slot.order ?? 0;
-        if (aOrder !== bOrder) return aOrder - bOrder;
-        if (a.slot.default_time && b.slot.default_time) return a.slot.default_time.localeCompare(b.slot.default_time);
-        if (a.slot.default_time) return -1;
-        if (b.slot.default_time) return 1;
-        return a.slot.name.localeCompare(b.slot.name);
-    });
-    setProcessedHabitSlotsForDay(tempProcessedHabitSlots);
-
-    setIsLoadingViewData(false);
-  }, [getRawActivities, selectedDate, hasMounted, viewMode, dateLocale, habits, habitCompletions, isAppStoreLoading]);
 
 
   useEffect(() => {
@@ -552,10 +614,11 @@ export default function ActivityCalendarView() {
                     ))}
                   </div>
                 ) : (
+                  // Conditional rendering based on habits existence if no activities
+                  (processedHabitSlotsForDay.length === 0 && !isLoadingViewData) &&
                   <p className="text-sm text-muted-foreground py-4 text-center">{t('noActivitiesForPeriod')}</p>
                 )}
 
-                {/* Habits Section */}
                 {(processedActivities.length > 0 && processedHabitSlotsForDay.length > 0) && (
                   <hr className="my-4 border-border/50" />
                 )}
@@ -573,7 +636,7 @@ export default function ActivityCalendarView() {
                   <div className="space-y-2.5">
                     {processedHabitSlotsForDay.map(item => (
                       <HabitListItem
-                        key={`${item.habit.id}-${item.slot.id}`}
+                        key={`${item.habit.id}-${item.slot.id}-${item.date.getTime()}`}
                         habit={item.habit}
                         slot={item.slot}
                         date={item.date}
@@ -589,8 +652,9 @@ export default function ActivityCalendarView() {
                   (processedActivities.length === 0 && !isLoadingViewData) && 
                   <p className="text-sm text-muted-foreground py-4 text-center">{t('noHabitsForDay')}</p>
                 )}
+                 {/* Combined message if both are empty */}
                 {processedActivities.length === 0 && processedHabitSlotsForDay.length === 0 && !isLoadingViewData && (
-                    <p className="text-sm text-muted-foreground py-4 text-center">{t('noActivitiesForPeriod')}</p>
+                    <p className="text-sm text-muted-foreground py-4 text-center">{t('noActivitiesForPeriod')}</p> 
                 )}
 
               </ScrollArea>

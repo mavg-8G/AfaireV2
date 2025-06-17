@@ -94,6 +94,7 @@ export interface Activity {
   responsiblePersonIds?: number[];
   appMode: AppMode;
   created_by_user_id?: number;
+  isSummary?: boolean; // Flag to indicate if this is a summary or full detail
 }
 
 export interface BackendActivityListItem {
@@ -110,6 +111,7 @@ export interface BackendActivityListItem {
   mode: BackendCategoryMode;
   responsible_ids: number[];
   created_by_user_id: number;
+  // Does NOT contain todos, occurrences, full category object, or full responsibles objects
 }
 
 export interface BackendActivity { // This is for the detailed GET /activities/{id}
@@ -124,10 +126,10 @@ export interface BackendActivity { // This is for the detailed GET /activities/{
   day_of_month?: number | null;
   notes?: string | null;
   mode: BackendCategoryMode;
-  category?: BackendCategory;
-  responsibles?: BackendUser[];
-  todos?: BackendTodo[];
-  occurrences?: BackendActivityOccurrence[];
+  category?: BackendCategory; // Full category object
+  responsibles?: BackendUser[]; // Full user objects
+  todos?: BackendTodo[]; // Full todo objects
+  occurrences?: BackendActivityOccurrence[]; // List of occurrences
   responsible_ids?: number[]; 
   created_by_user_id: number;
 }
@@ -372,11 +374,11 @@ export interface AppContextType {
   appMode: AppMode;
   setAppMode: (mode: AppMode) => void;
   addActivity: (
-    activityData: Omit<Activity, 'id' | 'todos' | 'createdAt' | 'completed' | 'completedAt' | 'notes' | 'recurrence' | 'completedOccurrences' | 'responsiblePersonIds' | 'categoryId'| 'appMode'| 'masterActivityId' | 'isRecurringInstance' | 'originalInstanceDate' | 'created_by_user_id'> & {
+    activityData: Omit<Activity, 'id' | 'todos' | 'createdAt' | 'completed' | 'completedAt' | 'notes' | 'recurrence' | 'completedOccurrences' | 'responsiblePersonIds' | 'categoryId'| 'appMode'| 'masterActivityId' | 'isRecurringInstance' | 'originalInstanceDate' | 'created_by_user_id' | 'isSummary'> & {
       todos?: Omit<Todo, 'id'>[]; time?: string; notes?: string; recurrence?: RecurrenceRule | null; responsiblePersonIds?: number[]; categoryId: number; appMode: AppMode;
     }, customCreatedAt?: number
   ) => Promise<void>;
-  updateActivity: (activityId: number, updates: Partial<Omit<Activity, 'id' | 'todos' | 'created_by_user_id'>>, originalActivity?: Activity) => Promise<void>;
+  updateActivity: (activityId: number, updates: Partial<Omit<Activity, 'id' | 'todos' | 'created_by_user_id' | 'isSummary'>>, originalActivity?: Activity) => Promise<void>;
   deleteActivity: (activityId: number) => Promise<void>;
   toggleOccurrenceCompletion: (masterActivityId: number, occurrenceDateTimestamp: number, completedState: boolean) => Promise<void>;
   addTodoToActivity: (activityId: number, todoText: string, completed?: boolean) => Promise<Todo | null>;
@@ -420,6 +422,3 @@ export interface AppContextType {
   toggleHabitSlotCompletion: (habitId: number, slotId: number, dateKey: string, currentStatus: HabitSlotCompletionStatus | undefined) => Promise<void>;
   getHabitById: (habitId: number) => Habit | undefined;
 }
-
-    
-

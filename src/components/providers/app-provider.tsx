@@ -344,31 +344,27 @@ const backendToFrontendAssignee = (backendUser: BackendUser): Assignee => ({
 const backendToFrontendActivity = (
   backendActivityInput:
     | BackendActivity
-    | BackendActivityListItem
-    | null
-    | undefined,
+    | BackendActivityListItem,
   currentAppMode: AppMode
 ): Activity => {
-  const backendActivity = backendActivityInput as BackendActivity &
-    BackendActivityListItem;
 
   const activityIdForLog =
-    typeof backendActivity?.id === "number" && backendActivity.id > 0
-      ? backendActivity.id
+    typeof backendActivityInput?.id === "number" && backendActivityInput.id > 0
+      ? backendActivityInput.id
       : "ID_MISSING_OR_INVALID_IN_BACKEND_RESPONSE";
 
   if (
-    !backendActivity ||
-    typeof backendActivity !== "object" ||
-    Object.keys(backendActivity).length === 0 ||
+    !backendActivityInput ||
+    typeof backendActivityInput !== "object" ||
+    Object.keys(backendActivityInput).length === 0 ||
     activityIdForLog === "ID_MISSING_OR_INVALID_IN_BACKEND_RESPONSE"
   ) {
     const fallbackId = Date.now() + Math.random();
     console.error(
       `[AppProvider] CRITICAL: backendToFrontendActivity received invalid, empty, or ID-less backendActivity object. Using fallback ID ${fallbackId}. Received:`,
-      typeof backendActivity === "object"
-        ? JSON.stringify(backendActivity)
-        : String(backendActivity)
+      typeof backendActivityInput === "object"
+        ? JSON.stringify(backendActivityInput)
+        : String(backendActivityInput)
     );
     return {
       id: fallbackId,
@@ -380,8 +376,14 @@ const backendToFrontendActivity = (
       completedOccurrences: {},
       time: "00:00",
       recurrence: { type: "none" },
+      isSummary: true,
     };
   }
+  
+  // Distinguish between full detail (BackendActivity) and list item (BackendActivityListItem)
+  // BackendActivity has 'todos' and 'occurrences' properties, BackendActivityListItem does not.
+  const isFullDetail = 'todos' in backendActivityInput && 'occurrences' in backendActivityInput;
+  const backendActivity = backendActivityInput as BackendActivity; // Cast for easier access, knowing checks will handle missing fields
 
   const startDateFromBackend = backendActivity.start_date;
   let createdAtTimestamp: number;
@@ -449,7 +451,7 @@ const backendToFrontendActivity = (
   };
 
   let todosFromBackend: Todo[] = [];
-  if ("todos" in backendActivity && Array.isArray(backendActivity.todos)) {
+  if (isFullDetail && Array.isArray(backendActivity.todos)) {
     (backendActivity.todos as BackendTodo[]).forEach(
       (bt: BackendTodo, index: number) => {
         const todoId =
@@ -470,7 +472,7 @@ const backendToFrontendActivity = (
       }
     );
   } else if (
-    "todos" in backendActivity &&
+    isFullDetail &&
     backendActivity.todos !== undefined &&
     backendActivity.todos !== null
   ) {
@@ -481,44 +483,35 @@ const backendToFrontendActivity = (
   }
 
   let responsiblePersonIdsProcessed: number[] = [];
-  if (
-    "responsibles" in backendActivity &&
-    Array.isArray(backendActivity.responsibles)
-  ) {
+  if (isFullDetail && Array.isArray(backendActivity.responsibles)) {
     responsiblePersonIdsProcessed = (
       backendActivity.responsibles as BackendUser[]
     ).map((r) => r.id);
   } else if (
-    "responsible_ids" in backendActivity &&
-    Array.isArray(backendActivity.responsible_ids)
+    "responsible_ids" in backendActivityInput && // Check on original input for list item
+    Array.isArray((backendActivityInput as BackendActivityListItem).responsible_ids)
   ) {
-    responsiblePersonIdsProcessed = backendActivity.responsible_ids;
+    responsiblePersonIdsProcessed = (backendActivityInput as BackendActivityListItem).responsible_ids;
   }
 
+
   let categoryIdToUse = 0;
-  if (
-    "category" in backendActivity &&
-    backendActivity.category &&
-    typeof (backendActivity.category as BackendCategory).id === "number"
-  ) {
-    categoryIdToUse = (backendActivity.category as BackendCategory).id;
+  if (isFullDetail && backendActivity.category && typeof backendActivity.category.id === "number") {
+    categoryIdToUse = backendActivity.category.id;
   } else if (
-    "category_id" in backendActivity &&
-    typeof backendActivity.category_id === "number"
+    "category_id" in backendActivityInput && // Check on original input
+    typeof backendActivityInput.category_id === "number"
   ) {
-    categoryIdToUse = backendActivity.category_id;
+    categoryIdToUse = backendActivityInput.category_id;
   } else {
     console.warn(
-      `[AppProvider] Warning: Could not determine categoryId for activity ID ${activityIdForLog}. Defaulting to 0. Received category_id: ${backendActivity.category_id}, Received category object:`,
-      backendActivity.category
+      `[AppProvider] Warning: Could not determine categoryId for activity ID ${activityIdForLog}. Defaulting to 0. Received category_id: ${backendActivityInput.category_id}, Received category object:`,
+      isFullDetail ? backendActivity.category : undefined
     );
   }
 
   const completedOccurrencesMap: Record<string, boolean> = {};
-  if (
-    "occurrences" in backendActivity &&
-    Array.isArray(backendActivity.occurrences)
-  ) {
+  if (isFullDetail && Array.isArray(backendActivity.occurrences)) {
     (backendActivity.occurrences as BackendActivityOccurrence[]).forEach(
       (occ) => {
         try {
@@ -561,25 +554,27 @@ const backendToFrontendActivity = (
   }
 
   return {
-    id: backendActivity.id,
-    title: backendActivity?.title || "Untitled Activity",
+    id: backendActivityInput.id,
+    title: backendActivityInput?.title || "Untitled Activity",
     categoryId: categoryIdToUse,
-    todos: todosFromBackend,
+    todos: todosFromBackend, // Will be empty if not isFullDetail
     createdAt: createdAtTimestamp,
-    time: backendActivity?.time || "00:00",
-    notes: backendActivity?.notes ?? undefined,
+    time: backendActivityInput?.time || "00:00",
+    notes: backendActivityInput?.notes ?? undefined,
     recurrence:
       recurrenceRule.type === "none" ? { type: "none" } : recurrenceRule,
     completed: finalCompletedStatus,
     completedAt: finalCompletedAt,
-    completedOccurrences: completedOccurrencesMap,
+    completedOccurrences: completedOccurrencesMap, // Will be empty if not isFullDetail
     responsiblePersonIds: responsiblePersonIdsProcessed,
-    appMode: ("mode" in backendActivity && backendActivity.mode === "both"
+    appMode: ("mode" in backendActivityInput && backendActivityInput.mode === "both"
       ? currentAppMode
-      : backendActivity?.mode || currentAppMode) as AppMode,
-    created_by_user_id: backendActivity.created_by_user_id,
+      : backendActivityInput?.mode || currentAppMode) as AppMode,
+    created_by_user_id: backendActivityInput.created_by_user_id,
+    isSummary: !isFullDetail,
   };
 };
+
 
 const frontendToBackendActivityPayload = (
   activity: Omit<
@@ -590,6 +585,7 @@ const frontendToBackendActivityPayload = (
     | "originalInstanceDate"
     | "masterActivityId"
     | "created_by_user_id"
+    | "isSummary"
   > & { todos?: BackendTodoCreate[] },
   isUpdate: boolean = false
 ): Partial<BackendActivityCreatePayload | BackendActivityUpdatePayload> => {
@@ -828,9 +824,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   const [decodedJwtState, setDecodedJwtState] = useState<DecodedToken | null>(null);
   const isRefreshingTokenRef = useRef(false);
 
-  // Refs to hold the latest token and decoded JWT
-  const accessTokenRef = useRef<string | null>(null);
-  const decodedJwtRef = useRef<DecodedToken | null>(null);
+  const accessTokenRef = useRef<string | null>(accessTokenState);
+  const decodedJwtRef = useRef<DecodedToken | null>(decodedJwtState);
 
   useEffect(() => {
     accessTokenRef.current = accessTokenState;
@@ -875,7 +870,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     {}
   );
 
-  const isAuthenticated = !!accessTokenRef.current; // Read from ref
+  const isAuthenticated = !!accessTokenRef.current; 
 
   const getCurrentUserId = useCallback((): number | null => {
     return decodedJwtRef.current?.userId
@@ -883,7 +878,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       : decodedJwtRef.current?.sub
       ? parseInt(decodedJwtRef.current.sub, 10)
       : null;
-  }, []); // Relies on ref, so no direct state dependencies needed
+  }, []); 
+
+  const addHistoryLogEntryRef = useRef<
+    | ((
+        actionKey: HistoryLogActionKey,
+        details?: Record<string, string | number | boolean | undefined | null>,
+        scope?: HistoryLogEntry["scope"]
+      ) => Promise<void>)
+    | null
+  >(null);
 
   const logout = useCallback(
     (isTokenRefreshFailure: boolean = false) => {
@@ -893,8 +897,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       if (!isTokenRefreshFailure && addHistoryLogEntryRef.current) {
         addHistoryLogEntryRef.current("historyLogLogout", undefined, "account");
       }
-      setAccessTokenState(null); // This will trigger useEffect to update accessTokenRef
-      setDecodedJwtState(null); // This will trigger useEffect to update decodedJwtRef
+      setAccessTokenState(null); 
+      setDecodedJwtState(null); 
+      accessTokenRef.current = null; // Explicitly clear ref
+      decodedJwtRef.current = null; // Explicitly clear ref
+
 
       if (typeof window !== "undefined") {
         console.log(
@@ -939,8 +946,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
 
       if (logoutChannel) logoutChannel.postMessage("logout_event_v2");
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [API_BASE_URL] 
+    [] 
   );
 
   const decodeAndSetAccessToken = useCallback(
@@ -1041,29 +1047,43 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   );
 
 const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> => {
-  const currentTokenAtCallTime = accessTokenRef.current; // Read from ref
+  const currentTokenAtCallTime = accessTokenRef.current;
 
-  if (!currentTokenAtCallTime) {
-    console.warn("[AppProvider refreshTokenLogicInternal] No access token in ref at call time. Skipping refresh.");
-    return null;
-  }
-
-  if (isRefreshingTokenRef.current) {
+  if (!currentTokenAtCallTime && !isRefreshingTokenRef.current) { 
+    // Only proceed if no token AND not already refreshing.
+    // This handles the initial load case where we try to refresh if no token exists.
+    console.log("[AppProvider refreshTokenLogicInternal] No access token in ref and not refreshing. Attempting initial refresh.");
+  } else if (!currentTokenAtCallTime && isRefreshingTokenRef.current) {
+    // Already refreshing, likely due to initial load, wait for it.
+    console.log("[AppProvider refreshTokenLogicInternal] No access token in ref, but already refreshing. Waiting.");
     return new Promise((resolve) => {
       const interval = setInterval(() => {
         if (!isRefreshingTokenRef.current) {
           clearInterval(interval);
-          resolve(accessTokenRef.current); // Resolve with current ref value
+          resolve(accessTokenRef.current); 
+        }
+      }, 100);
+    });
+  } else if (isRefreshingTokenRef.current) {
+    // A token exists, but another refresh is in progress. Wait for it.
+    console.log("[AppProvider refreshTokenLogicInternal] Token exists, but another refresh is in progress. Waiting.");
+     return new Promise((resolve) => {
+      const interval = setInterval(() => {
+        if (!isRefreshingTokenRef.current) {
+          clearInterval(interval);
+          resolve(accessTokenRef.current); 
         }
       }, 100);
     });
   }
+
 
   isRefreshingTokenRef.current = true;
 
   try {
     let response: Response;
     try {
+      console.log(`[AppProvider refreshTokenLogicInternal] Calling POST ${API_BASE_URL}/refresh-token`);
       response = await fetch(`${API_BASE_URL}/refresh-token`, {
         method: "POST",
         credentials: "include",
@@ -1081,7 +1101,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         t,
         `${API_BASE_URL}/refresh-token`
       );
-      logout(true); 
+      if(accessTokenRef.current) logout(true); 
       isRefreshingTokenRef.current = false;
       return null;
     }
@@ -1094,7 +1114,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         `[AppProvider refreshTokenLogicInternal] Refresh token API call failed: HTTP ${response.status}`,
         errorData
       );
-      logout(true);
+      if(accessTokenRef.current) logout(true);
       isRefreshingTokenRef.current = false;
       throw new Error(
         formatBackendError(
@@ -1110,21 +1130,22 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         newAuthData.access_token
       );
       if (!decodedNewToken) {
-        logout(true);
+        if(accessTokenRef.current) logout(true);
         isRefreshingTokenRef.current = false;
         return null;
       }
+      console.log("[AppProvider refreshTokenLogicInternal] Token refresh successful. New token set.");
       isRefreshingTokenRef.current = false;
-      return newAuthData.access_token; // Return the new token string
+      return newAuthData.access_token; 
     } else {
-      logout(true);
+      console.error("[AppProvider refreshTokenLogicInternal] New access token not found in refresh response.");
+      if(accessTokenRef.current) logout(true);
       isRefreshingTokenRef.current = false;
       throw new Error("New access token not found in refresh response.");
     }
   } catch (err) {
-    // Check if logout was already called (accessTokenRef.current would be null)
-    if (!accessTokenRef.current) { 
-        console.warn("[AppProvider refreshTokenLogicInternal catch] Logout already initiated, accessTokenRef is null.");
+    if (!accessTokenRef.current && !isRefreshingTokenRef.current) { // Already logged out and refresh finished (or never started for this error)
+        console.warn("[AppProvider refreshTokenLogicInternal catch] Logout already initiated or not applicable, accessTokenRef is null.");
     } else {
         console.error(
           "[AppProvider refreshTokenLogicInternal] Refresh token process failed:",
@@ -1138,7 +1159,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           t,
           `${API_BASE_URL}/refresh-token`
         );
-        logout(true); 
+        if(accessTokenRef.current) logout(true); 
     }
     isRefreshingTokenRef.current = false;
     return null;
@@ -1147,8 +1168,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
 
   const fetchWithAuth = useCallback(
     async (urlPath: string, options: RequestInit = {}): Promise<Response> => {
-      let currentTokenInScope: string | null = accessTokenRef.current; // Read from ref
-      let currentDecodedInScope: DecodedToken | null = decodedJwtRef.current; // Read from ref
+      let currentTokenInScope: string | null = accessTokenRef.current; 
+      let currentDecodedInScope: DecodedToken | null = decodedJwtRef.current; 
 
       const fullUrl = urlPath.startsWith("/api/")
         ? `${API_BASE_URL}${urlPath}`
@@ -1158,42 +1179,46 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         currentTokenInScope &&
         currentDecodedInScope &&
         currentDecodedInScope.exp * 1000 < Date.now() + 10000; 
-      const needsRefresh = !currentTokenInScope || tokenIsExpired;
+      
+      const needsRefreshDueToExpiry = currentTokenInScope && tokenIsExpired;
+      const needsRefreshDueToMissing = !currentTokenInScope;
 
       if (
-        needsRefresh &&
-        !urlPath.endsWith("/token") &&
-        !urlPath.endsWith("/refresh-token") &&
+        (needsRefreshDueToExpiry || needsRefreshDueToMissing) &&
+        !urlPath.endsWith("/token") && // Do not refresh for the login endpoint itself
+        !urlPath.endsWith("/refresh-token") && // Do not refresh for the refresh endpoint itself
         !isRefreshingTokenRef.current 
       ) {
         console.log(
-          `[AppProvider fetchWithAuth] Token needs refresh for ${fullUrl}. Current ref token ${
-            currentTokenInScope
-              ? tokenIsExpired
-                ? "expired"
-                : "exists"
-              : "missing"
-          }. Refreshing...`
+          `[AppProvider fetchWithAuth] Token for ${fullUrl} is ${currentTokenInScope ? (tokenIsExpired ? "expired" : "valid but checking for refresh") : "missing"}. Refreshing...`
         );
         const newAccessTokenString = await refreshTokenLogicInternal();
         if (newAccessTokenString) {
-          currentTokenInScope = newAccessTokenString; // Use the newly obtained token string
-          // decodedJwtRef will be updated by decodeAndSetAccessToken called within refreshTokenLogicInternal
+          currentTokenInScope = newAccessTokenString; 
+          currentDecodedInScope = decodedJwtRef.current; // Update from ref after decodeAndSetAccessToken
           console.log(
-            `[AppProvider fetchWithAuth] Token refreshed successfully for ${fullUrl}.`
+            `[AppProvider fetchWithAuth] Token refreshed successfully for ${fullUrl}. Proceeding with request.`
           );
         } else {
           console.error(
             `[AppProvider fetchWithAuth] Token refresh failed for ${fullUrl}. Logout should have been initiated by refresh logic.`
           );
-          throw new Error(
-            "Session update failed. Please try logging in again. (Refresh failed before request)"
-          );
+          // Check if logout was already called (e.g. if accessTokenRef.current is now null)
+          if (accessTokenRef.current) { // Only throw if not already logged out
+             throw new Error(
+              "Session update failed. Please try logging in again. (Refresh failed before request)"
+            );
+          } else { // Already logged out, perhaps re-throw a different error or let it fail if it tries to make a call without token
+            console.warn(`[AppProvider fetchWithAuth] Already logged out after failed refresh for ${fullUrl}.`);
+            // Depending on desired behavior, could throw here to stop the fetch or let it proceed (likely to fail if it needs auth)
+            throw new Error("User is logged out. Cannot make authenticated request.");
+          }
         }
       }
 
+
       if (
-        !currentTokenInScope && // Check the updated currentTokenInScope
+        !currentTokenInScope && 
         !urlPath.endsWith("/token") &&
         !urlPath.endsWith("/refresh-token")
       ) {
@@ -1201,11 +1226,11 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           `[AppProvider fetchWithAuth] CRITICAL: No JWT token available for authenticated request to ${fullUrl} even after refresh attempt.`
         );
         if (accessTokenRef.current) logout(true); 
-        throw new Error("No JWT token available for authenticated request.");
+        throw new Error("No JWT token available for authenticated request. Please log in.");
       }
 
       const headers = new Headers(options.headers || {});
-      if (currentTokenInScope) { // Use the potentially updated currentTokenInScope
+      if (currentTokenInScope) { 
         headers.append("Authorization", `Bearer ${currentTokenInScope}`);
       }
 
@@ -1274,14 +1299,19 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           console.error(
             `[AppProvider fetchWithAuth] Token refresh failed after 401 for ${fullUrl}. Logout should have been initiated.`
           );
-          throw new Error(
-            `Session update failed. Please try logging in again. (Details: Refresh failed after 401 for ${fullUrl})`
-          );
+           if (accessTokenRef.current) { // Only throw if not already logged out
+             throw new Error(
+              `Session update failed. Please try logging in again. (Details: Refresh failed after 401 for ${fullUrl})`
+            );
+          } else {
+            console.warn(`[AppProvider fetchWithAuth] Already logged out after failed refresh (post-401) for ${fullUrl}.`);
+            throw new Error("User is logged out. Cannot make authenticated request after 401.");
+          }
         }
       }
       return response;
     },
-    [refreshTokenLogicInternal, logout, API_BASE_URL] // Refs are stable, no need to list accessTokenRef or decodedJwtRef
+    [refreshTokenLogicInternal, logout, API_BASE_URL] 
   );
 
   const addHistoryLogEntryLogic = useCallback(
@@ -1290,7 +1320,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       details?: Record<string, string | number | boolean | undefined | null>,
       scope: HistoryLogEntry["scope"] = "account"
     ) => {
-      const currentUserId = getCurrentUserId(); // Uses decodedJwtRef.current
+      const currentUserId = getCurrentUserId(); 
       if (!currentUserId) {
         console.warn(
           "[AppProvider] Cannot add history log: User ID not available."
@@ -1342,17 +1372,9 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         );
       }
     },
-    [fetchWithAuth, getCurrentUserId, t, toast] // API_BASE_URL is implicitly part of fetchWithAuth
+    [fetchWithAuth, getCurrentUserId, t, toast] 
   );
 
-  const addHistoryLogEntryRef = useRef<
-    | ((
-        actionKey: HistoryLogActionKey,
-        details?: Record<string, string | number | boolean | undefined | null>,
-        scope?: HistoryLogEntry["scope"]
-      ) => Promise<void>)
-    | null
-  >(null);
 
   useEffect(() => {
     addHistoryLogEntryRef.current = addHistoryLogEntryLogic;
@@ -1374,7 +1396,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       )
         setAppModeState(storedAppMode);
       
-      let effectiveAccessToken = accessTokenRef.current; // Read from ref
+      let effectiveAccessToken = accessTokenRef.current; 
       if (!effectiveAccessToken) {
            console.log("[AppProvider useEffect init] No accessToken in ref, attempting refresh via refreshTokenLogicInternal.");
            effectiveAccessToken = await refreshTokenLogicInternal();
@@ -1391,11 +1413,15 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         );
       }
 
-      if (!effectiveAccessToken) { // Check ref again after potential refresh
+      if (!accessTokenRef.current) { 
         console.log(
           "[AppProvider useEffect init] No effective access token after initial load/refresh. Logging out and skipping data fetches."
         );
-        if (accessTokenRef.current) logout(true); 
+        // Do not call logout here if it was already called by refreshTokenLogicInternal
+        // Check if accessTokenRef.current is truly null before trying to logout
+        // logout(true) might have already been called by refreshTokenLogicInternal if it failed
+        // If refreshTokenLogicInternal returned null but didn't logout (e.g. no initial token), then we might not need to logout explicitly here
+        // as there's no session to clear.
         setIsLoadingState(false);
         setIsActivitiesLoading(false);
         setIsCategoriesLoading(false);
@@ -1500,39 +1526,15 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             return;
           }
           try {
-            let feAct = backendToFrontendActivity(beListItem, appModeState); // appModeState is fine here for initial sort
-            const activityOccurrences = allBackendOccurrences.filter(
-              (occ) => occ.activity_id === feAct.id
-            );
-            const occurrencesMap: Record<string, boolean> = {};
-            activityOccurrences.forEach((occ) => {
-              try {
-                const dateKey = formatISO(parseISO(occ.date), {
-                  representation: "date",
-                });
-                occurrencesMap[dateKey] = occ.complete;
-              } catch (e) {
-                console.warn(
-                  `[AppProvider] Failed to parse occurrence date for activity ${feAct.id} during initial load: ${occ.date}`,
-                  e
-                );
-              }
-            });
-            feAct.completedOccurrences = occurrencesMap;
-            if (feAct.recurrence?.type === "none" && feAct.createdAt) {
-              const mainOccurrenceDate = new Date(feAct.createdAt);
-              if (!isNaN(mainOccurrenceDate.getTime())) {
-                const mainOccurrenceDateKey = formatISO(mainOccurrenceDate, {
-                  representation: "date",
-                });
-                if (occurrencesMap.hasOwnProperty(mainOccurrenceDateKey)) {
-                  feAct.completed = occurrencesMap[mainOccurrenceDateKey];
-                  feAct.completedAt = feAct.completed
-                    ? mainOccurrenceDate.getTime()
-                    : null;
-                }
-              }
-            }
+            // When loading the list, these are summaries, so todos and occurrences aren't part of beListItem
+            let feAct = backendToFrontendActivity(beListItem, appModeState); 
+            
+            // For list items, completedOccurrences would be initially empty.
+            // We need to cross-reference with allBackendOccurrences if we want to populate this for summary items.
+            // This might be too much for initial load; perhaps fetchAndSetSpecificActivityDetails should handle it.
+            // For now, let's assume list items don't get their completedOccurrences populated from the /activity-occurrences endpoint directly here.
+            // The isSummary flag set by backendToFrontendActivity will indicate it's from a list.
+
             if (feAct.appMode === "personal") newPersonal.push(feAct);
             else newWork.push(feAct);
           } catch (conversionError) {
@@ -1616,8 +1618,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     };
 
     loadClientSideDataAndFetchInitial();
-  }, [fetchWithAuth, refreshTokenLogicInternal, logout, decodeAndSetAccessToken, appModeState, toast, t]); // Added dependencies
-  // Removed empty dependency array to re-run if these stable functions change (though they shouldn't often)
+  }, [fetchWithAuth, refreshTokenLogicInternal, logout, decodeAndSetAccessToken, appModeState, toast, t]);
 
 
   useEffect(() => {
@@ -1781,7 +1782,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
   }, [uiNotifications, isLoadingState]);
 
   useEffect(() => {
-    if (isLoadingState || !isAuthenticated || isHabitsLoading) return; // isAuthenticated reads from ref now
+    if (isLoadingState || !isAuthenticated || isHabitsLoading) return; 
 
     const intervalId = setInterval(() => {
       const now = new Date();
@@ -1952,7 +1953,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     workActivities,
     appModeState,
     isLoadingState,
-    isAuthenticated, // This now correctly reflects token presence from ref
+    isAuthenticated, 
     toast,
     t,
     lastNotificationCheckDay,
@@ -1967,14 +1968,14 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
   useEffect(() => {
     if (!logoutChannel) return;
     const handleLogoutMessage = (event: MessageEvent) => {
-      if (event.data === "logout_event_v2" && isAuthenticated) logout(); // isAuthenticated reads from ref
+      if (event.data === "logout_event_v2" && isAuthenticated) logout(); 
     };
     logoutChannel.addEventListener("message", handleLogoutMessage);
     return () => {
       if (logoutChannel)
         logoutChannel.removeEventListener("message", handleLogoutMessage);
     };
-  }, [isAuthenticated, logout]); // isAuthenticated from ref, logout is stable
+  }, [isAuthenticated, logout]); 
 
   const setAppMode = useCallback(
     (mode: AppMode) => {
@@ -1991,7 +1992,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       }
       setAppModeState(mode);
     },
-    [appModeState] // addHistoryLogEntryRef is stable
+    [appModeState] 
   );
 
   const login = useCallback(
@@ -2006,7 +2007,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       formData.append("password", password);
 
       try {
-        const response = await fetch(`${API_BASE_URL}/token`, { // Direct fetch, not fetchWithAuth
+        const response = await fetch(`${API_BASE_URL}/token`, { 
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: formData.toString(),
@@ -2024,17 +2025,14 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           );
         }
         const tokenData: Token = await response.json();
-        const decodedFromNewToken = await decodeAndSetAccessToken( // This updates state and refs
+        const decodedFromNewToken = await decodeAndSetAccessToken( 
           tokenData.access_token
         );
 
         if (!decodedFromNewToken)
           throw new Error("Failed to process token after login.");
-
-        // At this point, accessTokenRef.current and decodedJwtRef.current should be set due to useEffects
-        // So, addHistoryLogEntry and fetchWithAuth inside Promise.all should use the new token
         
-        addHistoryLogEntryRef.current?.( // Will use getCurrentUserId which reads from ref
+        addHistoryLogEntryRef.current?.( 
           "historyLogLogin",
           { username: tokenData.username },
           "account"
@@ -2050,7 +2048,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           showSystemNotification(title, description);
         }
 
-        // Data fetching starts AFTER successful token acquisition and processing
         try {
           setIsActivitiesLoading(true);
           setIsCategoriesLoading(true);
@@ -2067,7 +2064,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             habitsResponse,
             habitCompletionsResponse,
           ] = await Promise.all([
-            fetchWithAuth(`/activities`), // fetchWithAuth will use accessTokenRef
+            fetchWithAuth(`/activities`), 
             fetchWithAuth(`/categories`),
             fetchWithAuth(`/users`),
             fetchWithAuth(`/history`),
@@ -2131,38 +2128,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             }
             try {
               let feAct = backendToFrontendActivity(beListItem, appModeState);
-              const activityOccurrences = allBackendOccurrences.filter(
-                (occ) => occ.activity_id === feAct.id
-              );
-              const occurrencesMap: Record<string, boolean> = {};
-              activityOccurrences.forEach((occ) => {
-                try {
-                  const dateKey = formatISO(parseISO(occ.date), {
-                    representation: "date",
-                  });
-                  occurrencesMap[dateKey] = occ.complete;
-                } catch (e) {
-                  console.warn(
-                    `[AppProvider] Failed to parse occurrence date for activity ${feAct.id} after login: ${occ.date}`,
-                    e
-                  );
-                }
-              });
-              feAct.completedOccurrences = occurrencesMap;
-              if (feAct.recurrence?.type === "none" && feAct.createdAt) {
-                const mainOccurrenceDate = new Date(feAct.createdAt);
-                if (!isNaN(mainOccurrenceDate.getTime())) {
-                  const mainOccurrenceDateKey = formatISO(mainOccurrenceDate, {
-                    representation: "date",
-                  });
-                  if (occurrencesMap.hasOwnProperty(mainOccurrenceDateKey)) {
-                    feAct.completed = occurrencesMap[mainOccurrenceDateKey];
-                    feAct.completedAt = feAct.completed
-                      ? mainOccurrenceDate.getTime()
-                      : null;
-                  }
-                }
-              }
+              // List items are summaries, isSummary will be true.
               if (feAct.appMode === "personal") newPersonal.push(feAct);
               else newWork.push(feAct);
             } catch (conversionError) {
@@ -2257,7 +2223,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
 
   const changePassword = useCallback(
     async (oldPassword: string, newPassword: string): Promise<boolean> => {
-      const currentUserId = getCurrentUserId(); // Uses ref
+      const currentUserId = getCurrentUserId(); 
       if (!currentUserId) {
         toast({
           variant: "destructive",
@@ -2269,7 +2235,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       setError(null);
       const payload = { old_password: oldPassword, new_password: newPassword };
       try {
-        const response = await fetchWithAuth( // Uses refs
+        const response = await fetchWithAuth( 
           `/users/${currentUserId}/change-password`,
           {
             method: "POST",
@@ -2318,7 +2284,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         return false;
       }
     },
-    [fetchWithAuth, getCurrentUserId, t, toast, logout] // API_BASE_URL implicitly in fetchWithAuth
+    [fetchWithAuth, getCurrentUserId, t, toast, logout] 
   );
 
   const addCategory = useCallback(
@@ -2330,7 +2296,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         mode: frontendToBackendCategoryMode(mode),
       };
       try {
-        const response = await fetchWithAuth(`/categories`, { // Uses refs
+        const response = await fetchWithAuth(`/categories`, { 
           method: "POST",
           body: JSON.stringify(payload),
         });
@@ -2382,7 +2348,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         throw err;
       }
     },
-    [fetchWithAuth, toast, t, logout] // API_BASE_URL implicitly in fetchWithAuth
+    [fetchWithAuth, toast, t, logout] 
   );
 
   const updateCategory = useCallback(
@@ -2399,7 +2365,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         payload.mode = frontendToBackendCategoryMode(updates.mode);
 
       try {
-        const response = await fetchWithAuth(`/categories/${categoryId}`, { // Uses refs
+        const response = await fetchWithAuth(`/categories/${categoryId}`, { 
           method: "PUT",
           body: JSON.stringify(payload),
         });
@@ -2464,7 +2430,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         throw err;
       }
     },
-    [fetchWithAuth, toast, t, logout] // API_BASE_URL implicitly in fetchWithAuth
+    [fetchWithAuth, toast, t, logout] 
   );
 
   const deleteCategory = useCallback(
@@ -2475,7 +2441,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       );
       if (!categoryToDelete) return;
       try {
-        const response = await fetchWithAuth(`/categories/${categoryId}`, { // Uses refs
+        const response = await fetchWithAuth(`/categories/${categoryId}`, { 
           method: "DELETE",
         });
         if (!response.ok) {
@@ -2533,7 +2499,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         throw err;
       }
     },
-    [fetchWithAuth, allCategories, toast, t, logout] // API_BASE_URL implicitly in fetchWithAuth
+    [fetchWithAuth, allCategories, toast, t, logout] 
   );
 
   const addAssignee = useCallback(
@@ -2560,7 +2526,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       };
 
       try {
-        const response = await fetchWithAuth(`/users`, { // Uses refs
+        const response = await fetchWithAuth(`/users`, { 
           method: "POST",
           body: JSON.stringify(payload),
         });
@@ -2617,7 +2583,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         throw err;
       }
     },
-    [fetchWithAuth, toast, t, logout] // API_BASE_URL implicitly in fetchWithAuth
+    [fetchWithAuth, toast, t, logout] 
   );
 
   const updateAssignee = useCallback(
@@ -2636,7 +2602,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       if (updates.isAdmin !== undefined) payload.is_admin = updates.isAdmin;
 
       try {
-        const response = await fetchWithAuth(`/users/${assigneeId}`, { // Uses refs
+        const response = await fetchWithAuth(`/users/${assigneeId}`, { 
           method: "PUT",
           body: JSON.stringify(payload),
         });
@@ -2710,7 +2676,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         throw err;
       }
     },
-    [fetchWithAuth, assignees, toast, t, logout] // API_BASE_URL implicitly in fetchWithAuth
+    [fetchWithAuth, assignees, toast, t, logout] 
   );
 
   const deleteAssignee = useCallback(
@@ -2719,7 +2685,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       const assigneeToDelete = assignees.find((asg) => asg.id === assigneeId);
       if (!assigneeToDelete) return;
       try {
-        const response = await fetchWithAuth(`/users/${assigneeId}`, { // Uses refs
+        const response = await fetchWithAuth(`/users/${assigneeId}`, { 
           method: "DELETE",
         });
         if (!response.ok) {
@@ -2780,7 +2746,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         throw err;
       }
     },
-    [fetchWithAuth, assignees, toast, t, logout] // API_BASE_URL implicitly in fetchWithAuth
+    [fetchWithAuth, assignees, toast, t, logout] 
   );
 
   const addActivity = useCallback(
@@ -2802,6 +2768,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         | "isRecurringInstance"
         | "originalInstanceDate"
         | "created_by_user_id"
+        | "isSummary"
       > & {
         todos?: Omit<Todo, "id">[];
         time?: string;
@@ -2815,11 +2782,11 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     ) => {
       setError(null);
       const frontendActivityShell: Activity = {
-        id: 0,
+        id: 0, // Placeholder
         title: activityData.title,
         categoryId: activityData.categoryId,
-        todos: (activityData.todos || []).map((t) => ({
-          id: 0,
+        todos: (activityData.todos || []).map((t, i) => ({ // Placeholder IDs
+          id: Date.now() + i, 
           text: t.text,
           completed: !!t.completed,
         })),
@@ -2830,10 +2797,11 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         responsiblePersonIds: activityData.responsiblePersonIds,
         appMode: activityData.appMode,
         completedOccurrences: {},
+        isSummary: false, // New activities created on frontend are considered "full"
       };
 
       const payload = frontendToBackendActivityPayload(
-        frontendActivityShell
+        frontendActivityShell 
       ) as BackendActivityCreatePayload;
       payload.todos = (activityData.todos || []).map((t) => ({
         text: t.text,
@@ -2841,7 +2809,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       }));
 
       try {
-        const response = await fetchWithAuth(`/activities`, { // Uses refs
+        const response = await fetchWithAuth(`/activities`, { 
           method: "POST",
           body: JSON.stringify(payload),
         });
@@ -2860,8 +2828,9 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         const newBackendActivity: BackendActivity = await response.json();
         const newFrontendActivity = backendToFrontendActivity(
           newBackendActivity,
-          appModeState
+          appModeState 
         );
+        // newFrontendActivity.isSummary will be false because it's from BackendActivity
 
         if (newFrontendActivity.appMode === "personal") {
           setPersonalActivities((prev) => [...prev, newFrontendActivity]);
@@ -2915,13 +2884,13 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       logout,
       allCategories,
       dateFnsLocale,
-    ] // API_BASE_URL implicitly in fetchWithAuth
+    ] 
   );
 
   const updateActivity = useCallback(
     async (
       activityId: number,
-      updates: Partial<Omit<Activity, "id" | "todos" | "created_by_user_id">>,
+      updates: Partial<Omit<Activity, "id" | "todos" | "created_by_user_id" | "isSummary">>,
       originalActivity?: Activity
     ) => {
       setError(null);
@@ -2957,7 +2926,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       ) as BackendActivityUpdatePayload;
 
       try {
-        const response = await fetchWithAuth(`/activities/${activityId}`, { // Uses refs
+        const response = await fetchWithAuth(`/activities/${activityId}`, { 
           method: "PUT",
           body: JSON.stringify(payload),
         });
@@ -2973,40 +2942,28 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           );
         }
 
-        const updatedBackendActivity: BackendActivity = await response.json();
+        // Fetch full details again to ensure consistency, backend might have side effects
+        const detailedResponse = await fetchWithAuth(`/activities/${activityId}`);
+        if (!detailedResponse.ok) {
+             throw new Error(`Failed to fetch full details after update for activity ${activityId}`);
+        }
+        const updatedBackendActivity: BackendActivity = await detailedResponse.json();
+
         let processedActivityFromBackend = backendToFrontendActivity(
           updatedBackendActivity,
-          appModeState
+          appModeState 
         );
+        // processedActivityFromBackend.isSummary will be false
+
 
         const finalFrontendActivity = {
-          ...activityToUpdate,
-          ...processedActivityFromBackend,
-          todos: activityToUpdate.todos, // Keep existing todos, they are managed separately
-          completedOccurrences: {
-            ...activityToUpdate.completedOccurrences, // Preserve existing client-side occurrences
-            ...processedActivityFromBackend.completedOccurrences, // Overlay with fresh backend occurrences
-          },
-          // Update completed and completedAt based on the main occurrence for non-recurring
-          completed:
-            processedActivityFromBackend.recurrence?.type === "none" &&
-            processedActivityFromBackend.createdAt
-              ? processedActivityFromBackend.completedOccurrences[
-                  formatISO(new Date(processedActivityFromBackend.createdAt), {
-                    representation: "date",
-                  })
-                ]
-              : activityToUpdate.completed, // Fallback to old if not non-recurring from backend
-          completedAt:
-            processedActivityFromBackend.recurrence?.type === "none" &&
-            processedActivityFromBackend.createdAt &&
-            processedActivityFromBackend.completedOccurrences[
-              formatISO(new Date(processedActivityFromBackend.createdAt), {
-                representation: "date",
-              })
-            ]
-              ? new Date(processedActivityFromBackend.createdAt).getTime()
-              : activityToUpdate.completedAt, // Fallback
+          ...activityToUpdate, // Start with existing client-side state
+          ...processedActivityFromBackend, // Overlay with fresh full data from backend
+          // Ensure todos are from the detailed fetch, not potentially stale client state
+          todos: processedActivityFromBackend.todos,
+          // Ensure completedOccurrences are from the detailed fetch
+          completedOccurrences: processedActivityFromBackend.completedOccurrences,
+          isSummary: false, // Mark as fully detailed
         };
 
 
@@ -3094,7 +3051,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       logout,
       allCategories,
       dateFnsLocale,
-    ] // API_BASE_URL implicitly in fetchWithAuth
+    ] 
   );
 
   const deleteActivity = useCallback(
@@ -3127,7 +3084,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       }
 
       try {
-        const response = await fetchWithAuth(`/activities/${activityId}`, { // Uses refs
+        const response = await fetchWithAuth(`/activities/${activityId}`, { 
           method: "DELETE",
         });
         if (!response.ok) {
@@ -3196,7 +3153,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       logout,
       allCategories,
       dateFnsLocale,
-    ] // API_BASE_URL implicitly in fetchWithAuth
+    ] 
   );
 
   const addTodoToActivity = useCallback(
@@ -3211,7 +3168,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         complete: completed,
       };
       try {
-        const response = await fetchWithAuth( // Uses refs
+        const response = await fetchWithAuth( 
           `/activities/${activityId}/todos`,
           { method: "POST", body: JSON.stringify(payload) }
         );
@@ -3242,6 +3199,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             const updatedActivity = {
               ...list[activityIndex],
               todos: [...list[activityIndex].todos, newFrontendTodo],
+               isSummary: false, // Adding a todo implies it's now more detailed
             };
             setter((prev) =>
               prev.map((act) => (act.id === activityId ? updatedActivity : act))
@@ -3280,7 +3238,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       toast,
       t,
       logout,
-    ] // API_BASE_URL implicitly in fetchWithAuth
+    ] 
   );
 
   const updateTodoInActivity = useCallback(
@@ -3293,7 +3251,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       if (Object.keys(payload).length === 0) return;
 
       try {
-        const response = await fetchWithAuth(`/todos/${todoId}`, { // Uses refs
+        const response = await fetchWithAuth(`/todos/${todoId}`, { 
           method: "PUT",
           body: JSON.stringify(payload),
         });
@@ -3327,6 +3285,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             const updatedActivity = {
               ...list[activityIndex],
               todos: updatedTodos,
+              isSummary: false, // Updating a todo implies it's now more detailed
             };
             setter((prev) =>
               prev.map((act) => (act.id === activityId ? updatedActivity : act))
@@ -3363,14 +3322,14 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       t,
       toast,
       logout,
-    ] // API_BASE_URL implicitly in fetchWithAuth
+    ] 
   );
 
   const deleteTodoFromActivity = useCallback(
     async (activityId: number, todoId: number) => {
       setError(null);
       try {
-        const response = await fetchWithAuth(`/todos/${todoId}`, { // Uses refs
+        const response = await fetchWithAuth(`/todos/${todoId}`, { 
           method: "DELETE",
         });
         if (!response.ok) {
@@ -3397,6 +3356,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             const updatedActivity = {
               ...list[activityIndex],
               todos: updatedTodos,
+              isSummary: false, // Modifying todos implies it's now more detailed
             };
             setter((prev) =>
               prev.map((act) => (act.id === activityId ? updatedActivity : act))
@@ -3433,7 +3393,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       toast,
       t,
       logout,
-    ] // API_BASE_URL implicitly in fetchWithAuth
+    ] 
   );
 
   const toggleOccurrenceCompletion = useCallback(
@@ -3476,13 +3436,14 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
                   ...act.completedOccurrences,
                   [occurrenceDateKey]: completedState,
                 },
+                 isSummary: false, // Interaction implies we want it treated as detailed
               }
             : act
         )
       );
 
       try {
-        const occurrencesForActivityResponse = await fetchWithAuth( // Uses refs
+        const occurrencesForActivityResponse = await fetchWithAuth( 
           `/activities/${masterActivityId}/occurrences`
         );
         if (!occurrencesForActivityResponse.ok)
@@ -3507,7 +3468,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           const updatePayload: BackendActivityOccurrenceUpdate = {
             complete: completedState,
           };
-          const updateResponse = await fetchWithAuth( // Uses refs
+          const updateResponse = await fetchWithAuth( 
             `/activity-occurrences/${existingOccurrence.id}`,
             {
               method: "PUT",
@@ -3532,7 +3493,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             date: occurrenceDateTimeISO,
             complete: completedState,
           };
-          const createResponse = await fetchWithAuth(`/activity-occurrences`, { // Uses refs
+          const createResponse = await fetchWithAuth(`/activity-occurrences`, { 
             method: "POST",
             body: JSON.stringify(createPayload),
           });
@@ -3556,6 +3517,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
                     ...act.completedOccurrences,
                     [occurrenceDateKey]: backendResponseOccurrence.complete,
                   },
+                  isSummary: false,
                 }
               : act
           )
@@ -3616,14 +3578,14 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       t,
       toast,
       logout,
-    ] // API_BASE_URL implicitly in fetchWithAuth
+    ] 
   );
 
   const fetchAndSetSpecificActivityDetails = useCallback(
     async (activityId: number): Promise<Activity | null> => {
       try {
-        const activityResponse = await fetchWithAuth( // Uses refs
-          `/activities/${activityId}`
+        const activityResponse = await fetchWithAuth( 
+          `/activities/${activityId}` // This should return BackendActivity (full detail)
         );
         if (!activityResponse.ok) {
           const errorData = await activityResponse.json().catch(() => ({
@@ -3636,79 +3598,17 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             )
           );
         }
-        const backendActivityListItem: BackendActivityListItem =
-          await activityResponse.json();
-        let frontendActivityShell = backendToFrontendActivity(
-          backendActivityListItem,
+        // Assuming the endpoint /activities/{id} returns the FULL BackendActivity structure
+        const backendFullActivity: BackendActivity = await activityResponse.json();
+        
+        // backendToFrontendActivity will set isSummary = false if 'todos' and 'occurrences' are present
+        let frontendActivityWithDetails = backendToFrontendActivity(
+          backendFullActivity,
           appModeState
         );
 
-        const todosResponse = await fetchWithAuth( // Uses refs
-          `/activities/${activityId}/todos`
-        );
-        let fetchedApiTodos: BackendTodo[] = [];
-        if (todosResponse.ok) {
-          fetchedApiTodos = await todosResponse.json();
-        } else {
-          console.warn(
-            `[AppProvider] Failed to fetch todos for activity ${activityId}: HTTP ${todosResponse.status}`
-          );
-        }
-        frontendActivityShell.todos = fetchedApiTodos.map((bt) => ({
-          id: bt.id,
-          text: bt.text,
-          completed: bt.complete,
-        }));
-
-        const occurrencesResponse = await fetchWithAuth( // Uses refs
-          `/activities/${activityId}/occurrences`
-        );
-        let activityOccurrences: BackendActivityOccurrence[] = [];
-        if (occurrencesResponse.ok) {
-          activityOccurrences = await occurrencesResponse.json();
-        } else {
-          console.warn(
-            `[AppProvider] Failed to fetch occurrences for activity ${activityId}: HTTP ${occurrencesResponse.status}`
-          );
-        }
-        const occurrencesMap: Record<string, boolean> = {};
-        activityOccurrences.forEach((occ) => {
-          try {
-            const dateKey = formatISO(parseISO(occ.date), {
-              representation: "date",
-            });
-            occurrencesMap[dateKey] = occ.complete;
-          } catch (e) {
-            console.warn(
-              `[AppProvider] Failed to parse occurrence date for activity ${activityId}: ${occ.date}`,
-              e
-            );
-          }
-        });
-        frontendActivityShell.completedOccurrences = occurrencesMap;
-
-        if (
-          frontendActivityShell.recurrence?.type === "none" &&
-          frontendActivityShell.createdAt
-        ) {
-          const mainOccurrenceDate = new Date(frontendActivityShell.createdAt);
-          if (!isNaN(mainOccurrenceDate.getTime())) {
-            const mainOccurrenceDateKey = formatISO(mainOccurrenceDate, {
-              representation: "date",
-            });
-            if (occurrencesMap.hasOwnProperty(mainOccurrenceDateKey)) {
-              frontendActivityShell.completed =
-                occurrencesMap[mainOccurrenceDateKey];
-              frontendActivityShell.completedAt =
-                frontendActivityShell.completed
-                  ? mainOccurrenceDate.getTime()
-                  : null;
-            }
-          }
-        }
-
         const setter =
-          frontendActivityShell.appMode === "personal"
+          frontendActivityWithDetails.appMode === "personal"
             ? setPersonalActivities
             : setWorkActivities;
         setter((prevActivities) => {
@@ -3718,13 +3618,14 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           if (existingActivity) {
             return prevActivities.map((act) =>
               act.id === activityId
-                ? { ...existingActivity, ...frontendActivityShell }
+                ? { ...existingActivity, ...frontendActivityWithDetails, isSummary: false } // Ensure isSummary is false
                 : act
             );
           }
-          return [...prevActivities, frontendActivityShell];
+          // If somehow not in list, add it (should be rare for an update details call)
+          return [...prevActivities, { ...frontendActivityWithDetails, isSummary: false }];
         });
-        return frontendActivityShell;
+        return { ...frontendActivityWithDetails, isSummary: false };
       } catch (err) {
         if (
           err instanceof Error &&
@@ -3745,14 +3646,14 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         return null;
       }
     },
-    [fetchWithAuth, appModeState, t, toast, logout] // API_BASE_URL implicitly in fetchWithAuth
+    [fetchWithAuth, appModeState, t, toast, logout] 
   );
 
   const addHabit = useCallback(
     async (habitData: HabitCreateData) => {
       setError(null);
       try {
-        const response = await fetchWithAuth(`/api/habits`, { // Uses refs
+        const response = await fetchWithAuth(`/api/habits`, { 
           method: "POST",
           body: JSON.stringify(habitData),
         });
@@ -3802,7 +3703,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         throw err;
       }
     },
-    [fetchWithAuth, toast, t, logout] // API_BASE_URL implicitly in fetchWithAuth
+    [fetchWithAuth, toast, t, logout] 
   );
 
   const updateHabit = useCallback(
@@ -3810,7 +3711,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       setError(null);
       const oldHabit = habits.find((h) => h.id === habitId);
       try {
-        const response = await fetchWithAuth(`/api/habits/${habitId}`, { // Uses refs
+        const response = await fetchWithAuth(`/api/habits/${habitId}`, { 
           method: "PUT",
           body: JSON.stringify(habitData),
         });
@@ -3863,7 +3764,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         throw err;
       }
     },
-    [fetchWithAuth, habits, toast, t, logout] // API_BASE_URL implicitly in fetchWithAuth
+    [fetchWithAuth, habits, toast, t, logout] 
   );
 
   const deleteHabit = useCallback(
@@ -3871,7 +3772,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       setError(null);
       const habitToDelete = habits.find((h) => h.id === habitId);
       try {
-        const response = await fetchWithAuth(`/api/habits/${habitId}`, { // Uses refs
+        const response = await fetchWithAuth(`/api/habits/${habitId}`, { 
           method: "DELETE",
         });
         if (!response.ok && response.status !== 204) { 
@@ -3925,7 +3826,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         throw err;
       }
     },
-    [fetchWithAuth, habits, toast, t, logout] // API_BASE_URL implicitly in fetchWithAuth
+    [fetchWithAuth, habits, toast, t, logout] 
   );
 
   const toggleHabitSlotCompletion = useCallback(
@@ -3946,7 +3847,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           const payload: BackendHabitCompletionUpdatePayload = {
             is_completed: newCompletedState,
           };
-          const response = await fetchWithAuth( // Uses refs
+          const response = await fetchWithAuth( 
             `/api/habit_completions/${currentStatus.completionId}`,
             {
               method: "PUT",
@@ -3972,7 +3873,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             completion_date: parseISO(dateKey).toISOString(),
             is_completed: newCompletedState,
           };
-          const response = await fetchWithAuth(`/api/habit_completions`, { // Uses refs
+          const response = await fetchWithAuth(`/api/habit_completions`, { 
             method: "POST",
             body: JSON.stringify(payload),
           });
@@ -4031,7 +3932,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
       }
     },
-    [fetchWithAuth, habits, toast, t, logout] // API_BASE_URL implicitly in fetchWithAuth
+    [fetchWithAuth, habits, toast, t, logout] 
   );
 
 
@@ -4087,7 +3988,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     const handleVisibilityChange = () => {
       if (
         document.visibilityState === "visible" &&
-        isAuthenticated && // Reads from ref
+        isAuthenticated && 
         appPinState
       )
         setIsAppLocked(true);
@@ -4095,14 +3996,14 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () =>
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [isAuthenticated, appPinState, isLoadingState]); // isAuthenticated from ref, isLoadingState
+  }, [isAuthenticated, appPinState, isLoadingState]); 
 
   const combinedIsLoading =
     isLoadingState ||
     isActivitiesLoading ||
     isCategoriesLoading ||
     isAssigneesLoading ||
-    (isAuthenticated && (isHistoryLoading || isHabitsLoading)); // isAuthenticated from ref
+    (isAuthenticated && (isHistoryLoading || isHabitsLoading)); 
 
   const contextValue = useMemo(
     () => ({
@@ -4129,7 +4030,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       getAssigneeById,
       isLoading: combinedIsLoading,
       error,
-      isAuthenticated, // This is the getter, which reads from the ref
+      isAuthenticated, 
       login,
       logout,
       changePassword,
@@ -4157,54 +4058,53 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       getHabitById,
     }),
     [
-      getRawActivities, // stable
-      filteredCategories, // depends on allCategories, appModeState, isCategoriesLoading
-      assigneesForContext, // depends on assignees, isAssigneesLoading
-      appModeState, // state
-      setAppMode, // stable (depends on appModeState for logic but func itself is stable)
-      addActivity, // stable (depends on other stable funcs/refs)
-      updateActivity, // stable
-      deleteActivity, // stable
-      toggleOccurrenceCompletion, // stable
-      addTodoToActivity, // stable
-      updateTodoInActivity, // stable
-      deleteTodoFromActivity, // stable
-      getCategoryById, // depends on allCategories
-      addCategory, // stable
-      updateCategory, // stable
-      deleteCategory, // stable
-      addAssignee, // stable
-      updateAssignee, // stable
-      deleteAssignee, // stable
-      getAssigneeById, // depends on assignees
-      combinedIsLoading, // derived from multiple loading states
-      error, // state
-      isAuthenticated, // This is the derived boolean, should be stable if refs are used right
-      login, // stable
-      logout, // stable
-      changePassword, // stable
-      getCurrentUserId, // stable (uses ref)
-      uiNotifications, // state
-      stableAddUINotification, // stable
-      markUINotificationAsRead, // stable
-      markAllUINotificationsAsRead, // stable
-      clearAllUINotifications, // stable
-      historyLog, // state
-      // addHistoryLogEntryRef.current is intentionally omitted from deps, value is stable once set
-      systemNotificationPermission, // state
-      requestSystemNotificationPermission, // stable
-      isAppLocked, // state
-      appPinState, // state
-      unlockApp, // stable
-      setAppPin, // stable
-      fetchAndSetSpecificActivityDetails, // stable
-      habits, // state
-      habitCompletions, // state
-      addHabit, // stable
-      updateHabit, // stable
-      deleteHabit, // stable
-      toggleHabitSlotCompletion, // stable
-      getHabitById, // depends on habits
+      getRawActivities, 
+      filteredCategories, 
+      assigneesForContext, 
+      appModeState, 
+      setAppMode, 
+      addActivity, 
+      updateActivity, 
+      deleteActivity, 
+      toggleOccurrenceCompletion, 
+      addTodoToActivity, 
+      updateTodoInActivity, 
+      deleteTodoFromActivity, 
+      getCategoryById, 
+      addCategory, 
+      updateCategory, 
+      deleteCategory, 
+      addAssignee, 
+      updateAssignee, 
+      deleteAssignee, 
+      getAssigneeById, 
+      combinedIsLoading, 
+      error, 
+      isAuthenticated, 
+      login, 
+      logout, 
+      changePassword, 
+      getCurrentUserId, 
+      uiNotifications, 
+      stableAddUINotification, 
+      markUINotificationAsRead, 
+      markAllUINotificationsAsRead, 
+      clearAllUINotifications, 
+      historyLog, 
+      systemNotificationPermission, 
+      requestSystemNotificationPermission, 
+      isAppLocked, 
+      appPinState, 
+      unlockApp, 
+      setAppPin, 
+      fetchAndSetSpecificActivityDetails, 
+      habits, 
+      habitCompletions, 
+      addHabit, 
+      updateHabit, 
+      deleteHabit, 
+      toggleHabitSlotCompletion, 
+      getHabitById, 
     ]
   );
 
