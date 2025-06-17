@@ -3,28 +3,29 @@
 import type { Activity, Category, Todo } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit3, Trash2, Clock, CalendarDays, Repeat, CalendarPlus } from 'lucide-react';
+import { Edit3, Trash2, Clock, CalendarDays, Repeat, CalendarPlus, ListChecks } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAppStore } from '@/hooks/use-app-store';
 import { cn } from '@/lib/utils';
 import { useTranslations } from '@/contexts/language-context';
-import { format, formatISO, isSameDay } from 'date-fns';
+import { format, formatISO } from 'date-fns';
 import { enUS, es, fr } from 'date-fns/locale';
-import { generateICSContent, downloadFile } from '@/lib/ics-utils'; // Import ICS utilities
+import { generateICSContent, downloadFile } from '@/lib/ics-utils';
 import { useRouter } from 'next/navigation'; // Import useRouter for navigation
+import { Label } from '@/components/ui/label'; // Import Label for associating with checkbox
 
 interface ActivityListItemProps {
   activity: Activity; // This can be a master activity or a generated instance
   category: Category | undefined;
-  onEdit: () => void; // Kept for master activity edit action
-  onDelete: () => void; // Kept for master activity delete action
+  onEdit: () => void;
+  onDelete: () => void;
   showDate?: boolean;
-  instanceDate?: Date; // The specific date of this occurrence if it's a recurring instance
+  instanceDate?: Date;
 }
 
 export default function ActivityListItem({ activity, category, onEdit, onDelete, showDate, instanceDate }: ActivityListItemProps) {
-  const { toggleOccurrenceCompletion } = useAppStore(); // Use toggleOccurrenceCompletion
+  const { toggleOccurrenceCompletion, updateTodoInActivity, getRawActivities } = useAppStore();
   const { t, locale } = useTranslations();
   const router = useRouter();
   const dateLocale = locale === 'es' ? es : locale === 'fr' ? fr : enUS;
@@ -32,28 +33,15 @@ export default function ActivityListItem({ activity, category, onEdit, onDelete,
   const effectiveDate = instanceDate || new Date(activity.createdAt);
   const occurrenceDateKey = formatISO(effectiveDate, { representation: 'date' });
 
-  // Always derive completion status from the completedOccurrences map for the specific date
   const isCompletedForThisOccurrence = !!activity.completedOccurrences?.[occurrenceDateKey];
-
-  const todosForThisInstance = activity.todos || [];
-  const totalTodos = todosForThisInstance.length;
-  const completedTodos = todosForThisInstance.filter(t => t.completed).length;
 
   const handleActivityCompletedChange = (completedValue: boolean) => {
     const targetActivityId = activity.masterActivityId || activity.id;
-    // Use effectiveDate's timestamp (which is derived from instanceDate or activity.createdAt)
-    const targetOccurrenceDateTimestamp = effectiveDate.getTime(); 
-    
+    const targetOccurrenceDateTimestamp = effectiveDate.getTime();
     toggleOccurrenceCompletion(targetActivityId, targetOccurrenceDateTimestamp, Boolean(completedValue));
-
-    // Note: Logic for auto-completing todos when the parent activity/occurrence is marked complete
-    // is not handled here. That would require further calls to updateTodoInActivity for each todo,
-    // or a backend change to handle it atomically. This change focuses on making sure the
-    // ActivityOccurrence itself is correctly updated.
   };
 
   const handleEditClick = () => {
-    // The onEdit prop passed from ActivityCalendarView already handles finding master activity ID
     onEdit();
   };
 
@@ -62,6 +50,31 @@ export default function ActivityListItem({ activity, category, onEdit, onDelete,
     const filename = `${(activity.title || 'activity').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.ics`;
     downloadFile(filename, icsContent);
   };
+
+  // Determine which todos to display and their interactivity
+  let displayTodos: Todo[] = [];
+  let masterActivityForTodos: Activity | undefined = undefined;
+
+  if (activity.isRecurringInstance && activity.masterActivityId) {
+    masterActivityForTodos = getRawActivities().find(a => a.id === activity.masterActivityId);
+    displayTodos = masterActivityForTodos?.todos || [];
+  } else {
+    displayTodos = activity.todos || [];
+  }
+  
+  const totalTodos = displayTodos.length;
+  const completedTodosCount = displayTodos.filter(t => t.completed).length;
+
+
+  const handleTodoCheckedChange = (todoId: number, newCheckedState: boolean) => {
+    if (activity.isRecurringInstance) {
+      // For recurring instances, todos are read-only in this view
+      return;
+    }
+    // For non-recurring activities, update the todo in the master activity
+    updateTodoInActivity(activity.id, todoId, { completed: newCheckedState });
+  };
+
 
   return (
     <Card className={cn(
@@ -73,7 +86,7 @@ export default function ActivityListItem({ activity, category, onEdit, onDelete,
           <Checkbox
             id={`activity-completed-${activity.id}-${occurrenceDateKey}`}
             checked={isCompletedForThisOccurrence}
-            onCheckedChange={handleActivityCompletedChange} // Directly pass the boolean value
+            onCheckedChange={handleActivityCompletedChange}
             aria-labelledby={`activity-title-${activity.id}-${occurrenceDateKey}`}
           />
           <div className="flex flex-col flex-grow min-w-0">
@@ -137,8 +150,10 @@ export default function ActivityListItem({ activity, category, onEdit, onDelete,
           </Button>
         </div>
       </CardHeader>
+
+      {/* Combined Category and Todo Summary */}
       {(category || totalTodos > 0) && (
-        <CardContent className="px-3 pt-1 pb-2 pl-9">
+        <CardContent className="px-3 pt-1 pb-2 pl-9 space-y-1">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
             {category && (
               <Badge variant={isCompletedForThisOccurrence ? "outline" : "secondary"} className="text-xs py-0.5 px-1.5">
@@ -148,20 +163,54 @@ export default function ActivityListItem({ activity, category, onEdit, onDelete,
             )}
             {totalTodos > 0 && (
               <p className={cn("text-xs", isCompletedForThisOccurrence ? "text-muted-foreground" : "text-muted-foreground")}>
-                {t('todosCompleted', { completed: completedTodos, total: totalTodos })}
+                {t('todosCompleted', { completed: completedTodosCount, total: totalTodos })}
               </p>
             )}
           </div>
-          {totalTodos === 0 && (category || activity.time || showDate) && (
-            <p className={cn("text-xs mt-1", isCompletedForThisOccurrence ? "text-muted-foreground/80" : "text-muted-foreground")}>
-              {t('noTodosForThisActivity')}
-            </p>
-          )}
-          {totalTodos === 0 && !category && !activity.time && !showDate && (
+        </CardContent>
+      )}
+      
+      {/* Detailed Todos List */}
+      {displayTodos.length > 0 && (
+        <CardContent className="px-3 pt-0 pb-2 pl-9">
+           <div className="border-t -ml-6 my-1.5"></div>
+           <div className="flex items-center text-xs font-medium text-muted-foreground mb-1.5 -ml-1">
+             <ListChecks className="mr-1.5 h-3.5 w-3.5" />
+             {t('todosLabel')}
+           </div>
+          <ul className="space-y-1.5 max-h-28 overflow-y-auto pr-1">
+            {displayTodos.map((todo) => (
+              <li key={todo.id} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`todo-${activity.id}-${todo.id}-${occurrenceDateKey}`}
+                  checked={todo.completed}
+                  onCheckedChange={(checked) => handleTodoCheckedChange(todo.id, Boolean(checked))}
+                  disabled={activity.isRecurringInstance} // Disable for recurring instances as per plan
+                  aria-labelledby={`todo-label-${activity.id}-${todo.id}`}
+                />
+                <Label
+                  htmlFor={`todo-${activity.id}-${todo.id}-${occurrenceDateKey}`}
+                  id={`todo-label-${activity.id}-${todo.id}`}
+                  className={cn(
+                    "text-xs leading-tight",
+                    todo.completed && "line-through text-muted-foreground",
+                    activity.isRecurringInstance && "cursor-default" // Indicate non-interactive for recurring
+                  )}
+                >
+                  {todo.text}
+                </Label>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      )}
+
+      {/* Fallback messages if no category and no todos */}
+      {!category && totalTodos === 0 && (
+         <CardContent className="px-3 pt-1 pb-2 pl-9">
             <p className={cn("text-xs mt-1", isCompletedForThisOccurrence ? "text-muted-foreground/80" : "text-muted-foreground")}>
               {t('noDetailsAvailable')}
             </p>
-          )}
         </CardContent>
       )}
     </Card>
