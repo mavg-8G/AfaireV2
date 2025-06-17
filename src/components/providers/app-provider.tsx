@@ -1,3 +1,4 @@
+
 "use client";
 import type { ReactNode } from "react";
 import React, {
@@ -882,32 +883,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       setAccessTokenState(null);
       setDecodedJwt(null);
       if (typeof window !== "undefined") {
-        // access token cleared from state; server clears cookie
         console.log(
-          "[AppProvider logout] Access JWT removed from localStorage."
+          "[AppProvider logout] Access JWT removed from state (localStorage handled by token presence)."
         );
       }
 
-      // Call backend logout endpoint to invalidate HttpOnly refresh token cookie
       if (typeof window !== "undefined") {
-        // Use the full URL for the logout endpoint
         fetch(`${API_BASE_URL}/logout`, {
           method: "POST",
-          credentials: "include", // Important for HttpOnly cookie handling
+          credentials: "include",
         })
           .then((response) => {
-            if (response.ok)
+            if (response.ok) {
               console.log(
-                "[AppProvider logout] Backend logout successful, HttpOnly cookie should be cleared."
+                `[AppProvider logout] Backend logout call to ${API_BASE_URL}/logout successful, HttpOnly cookie should be cleared.`
               );
-            else
+            } else {
               console.warn(
-                "[AppProvider logout] Backend logout call failed or was not successful."
+                `[AppProvider logout] Backend logout call to ${API_BASE_URL}/logout failed or was not successful. Status: ${response.status} ${response.statusText}. This might be due to backend policy or an issue with the session/refresh token.`
               );
+            }
           })
           .catch((err) =>
             console.error(
-              "[AppProvider logout] Error calling backend logout endpoint:",
+              `[AppProvider logout] Error calling backend logout endpoint ${API_BASE_URL}/logout:`,
               err
             )
           );
@@ -925,8 +924,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       console.log("[AppProvider logout] Client-side app state cleared.");
 
       if (logoutChannel) logoutChannel.postMessage("logout_event_v2");
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [API_BASE_URL]
   );
 
@@ -1028,20 +1027,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   );
 
 const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> => {
-  if (!accessToken) {
-    // Si no hay accessToken, probablemente tampoco refresh token
-    console.warn("[AppProvider refreshTokenLogicInternal] No access token. Skipping refresh.");
-    logout(true);
+  // Use a local variable for accessToken to avoid stale closure issues within this specific call
+  const currentTokenAtCallTime = accessToken; 
+
+  if (!currentTokenAtCallTime) {
+    console.warn("[AppProvider refreshTokenLogicInternal] No access token state at call time. Skipping refresh.");
+    // Don't call logout here directly; let the caller decide based on context.
     return null;
   }
 
   if (isRefreshingTokenRef.current) {
-    // ...existing waiting logic...
     return new Promise((resolve) => {
       const interval = setInterval(() => {
         if (!isRefreshingTokenRef.current) {
           clearInterval(interval);
-          resolve(accessToken);
+          // Resolve with the potentially updated accessToken from state
+          resolve(accessToken); 
         }
       }, 100);
     });
@@ -1057,20 +1058,20 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         credentials: "include",
       });
     } catch (networkError) {
-      // Error de red o CORS
       console.error(
-        "[AppProvider refreshTokenLogicInternal] Error de red o CORS al intentar refrescar el token:",
+        "[AppProvider refreshTokenLogicInternal] Network error or CORS issue during token refresh:",
         (networkError as Error).message
       );
       createApiErrorToast(
-        { message: "No se pudo conectar con el servidor de autenticación o error de CORS." },
+        { message: "Failed to connect to authentication server or CORS error." },
         toast,
         "loginErrorTitle",
         "refreshing",
         t,
         `${API_BASE_URL}/refresh-token`
       );
-      logout(true);
+      // Critical failure, initiate logout
+      logout(true); 
       isRefreshingTokenRef.current = false;
       return null;
     }
@@ -1083,6 +1084,10 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         `[AppProvider refreshTokenLogicInternal] Refresh token API call failed: HTTP ${response.status}`,
         errorData
       );
+      // Critical failure, initiate logout
+      logout(true);
+      isRefreshingTokenRef.current = false;
+      // Throw to be caught by fetchWithAuth or other callers if they need to handle this specific error
       throw new Error(
         formatBackendError(
           errorData,
@@ -1097,6 +1102,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         newAuthData.access_token
       );
       if (!decodedNewToken) {
+        // Decoding or setting failed, critical
         logout(true);
         isRefreshingTokenRef.current = false;
         return null;
@@ -1104,27 +1110,36 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       isRefreshingTokenRef.current = false;
       return newAuthData.access_token;
     } else {
+      // Response OK but no token, critical
+      logout(true);
+      isRefreshingTokenRef.current = false;
       throw new Error("New access token not found in refresh response.");
     }
   } catch (err) {
-    console.error(
-      "[AppProvider refreshTokenLogicInternal] Refresh token failed:",
-      (err as Error).message
-    );
-    createApiErrorToast(
-      err,
-      toast,
-      "loginErrorTitle",
-      "refreshing",
-      t,
-      `${API_BASE_URL}/refresh-token`
-    );
-    logout(true);
+    // This catch handles errors from fetch itself, or errors thrown from !response.ok or no token in response.
+    // If logout(true) was already called above, this might be redundant, but ensures it happens.
+    if (!accessToken) { // Check if logout was already called and token cleared
+        console.warn("[AppProvider refreshTokenLogicInternal catch] Logout already initiated, accessToken is null.");
+    } else {
+        console.error(
+          "[AppProvider refreshTokenLogicInternal] Refresh token process failed:",
+          (err as Error).message
+        );
+        createApiErrorToast(
+          err,
+          toast,
+          "loginErrorTitle",
+          "refreshing",
+          t,
+          `${API_BASE_URL}/refresh-token`
+        );
+        logout(true); 
+    }
     isRefreshingTokenRef.current = false;
     return null;
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [API_BASE_URL, decodeAndSetAccessToken, logout, toast, t, accessToken]);
+}, [API_BASE_URL, decodeAndSetAccessToken, logout, toast, t, accessToken]); // Keep accessToken in deps
 
   const fetchWithAuth = useCallback(
     async (urlPath: string, options: RequestInit = {}): Promise<Response> => {
@@ -1135,23 +1150,17 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         ? `${API_BASE_URL}${urlPath}`
         : `${API_BASE_URL}${urlPath.startsWith("/") ? "" : "/"}${urlPath}`;
 
-      console.log(
-        `[AppProvider fetchWithAuth] Initiating for ${fullUrl}. Current token in state: ${
-          currentTokenInScope ? "Yes" : "No"
-        }`
-      );
-
       const tokenIsExpired =
         currentTokenInScope &&
         currentDecodedInScope &&
-        currentDecodedInScope.exp * 1000 < Date.now() + 10000; // 10s buffer
-      const needsRefresh = tokenIsExpired;
+        currentDecodedInScope.exp * 1000 < Date.now() + 10000; 
+      const needsRefresh = !currentTokenInScope || tokenIsExpired;
 
       if (
         needsRefresh &&
         !urlPath.endsWith("/token") &&
         !urlPath.endsWith("/refresh-token") &&
-        !isRefreshingTokenRef.current
+        !isRefreshingTokenRef.current 
       ) {
         console.log(
           `[AppProvider fetchWithAuth] Token needs refresh for ${fullUrl}. Current token ${
@@ -1165,18 +1174,17 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         const newAccessTokenString = await refreshTokenLogicInternal();
         if (newAccessTokenString) {
           currentTokenInScope = newAccessTokenString;
-          // decodedJwt state is updated by decodeAndSetAccessToken within refreshTokenLogicInternal
-          currentDecodedInScope = decodedJwt; // Re-read potentially updated decodedJwt from state
+          currentDecodedInScope = decodedJwt; 
           console.log(
             `[AppProvider fetchWithAuth] Token refreshed successfully for ${fullUrl}.`
           );
         } else {
           console.error(
-            `[AppProvider fetchWithAuth] Token refresh failed for ${fullUrl}. Logging out as refresh failed.`
+            `[AppProvider fetchWithAuth] Token refresh failed for ${fullUrl}. Logout should have been initiated by refresh logic.`
           );
-          logout(true);
+          // refreshTokenLogicInternal already calls logout(true) on failure
           throw new Error(
-            "Session expired. Please log in again. (Refresh failed before request)"
+            "Session update failed. Please try logging in again. (Refresh failed before request)"
           );
         }
       }
@@ -1189,7 +1197,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         console.error(
           `[AppProvider fetchWithAuth] CRITICAL: No JWT token available for authenticated request to ${fullUrl} even after refresh attempt.`
         );
-        logout(true);
+        // Ensure logout is called if somehow missed, though refreshTokenLogicInternal should handle it.
+        if (accessToken) logout(true); 
         throw new Error("No JWT token available for authenticated request.");
       }
 
@@ -1210,14 +1219,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           headers.append("Content-Type", "application/json");
         }
       }
-      console.log(
-        `[AppProvider fetchWithAuth] Making API call to ${fullUrl}. Token being used: ${
-          currentTokenInScope
-            ? "Yes (" + currentTokenInScope.substring(0, 10) + "...)"
-            : "No"
-        }`
-      );
-
+      
       const fetchOptions = {
         ...options,
         headers,
@@ -1268,11 +1270,11 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           });
         } else {
           console.error(
-            `[AppProvider fetchWithAuth] Token refresh failed after 401 for ${fullUrl}. Logging out.`
+            `[AppProvider fetchWithAuth] Token refresh failed after 401 for ${fullUrl}. Logout should have been initiated.`
           );
-          logout(true);
+           // refreshTokenLogicInternal already calls logout(true) on failure
           throw new Error(
-            `Unauthorized: ${response.statusText} (refresh failed after 401)`
+            `Session update failed. Please try logging in again. (Details: Refresh failed after 401 for ${fullUrl})`
           );
         }
       }
@@ -1282,8 +1284,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       accessToken,
       decodedJwt,
       refreshTokenLogicInternal,
-      decodeAndSetAccessToken,
-      logout,
+      logout, // Removed decodeAndSetAccessToken as it's part of refreshTokenLogicInternal
       API_BASE_URL,
     ]
   );
@@ -1345,9 +1346,9 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           (err as Error).message
         );
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [fetchWithAuth, getCurrentUserId, t, toast, API_BASE_URL]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fetchWithAuth, getCurrentUserId, t, toast, API_BASE_URL] 
   );
 
   const addHistoryLogEntryRef = useRef<
@@ -1378,16 +1379,23 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         (storedAppMode === "personal" || storedAppMode === "work")
       )
         setAppModeState(storedAppMode);
+      
+      // Crucial: Ensure accessToken from state is used for the first check.
+      // refreshTokenLogicInternal will use this accessToken state.
+      let effectiveAccessToken = accessToken;
+      if (!effectiveAccessToken) {
+           console.log("[AppProvider useEffect init] No accessToken in state, attempting refresh via refreshTokenLogicInternal.");
+           effectiveAccessToken = await refreshTokenLogicInternal();
+      }
 
-      // Attempt to get a fresh access token using refresh-token HttpOnly cookie
-      const effectiveAccessToken = await refreshTokenLogicInternal();
+
       if (effectiveAccessToken) {
         console.log(
-          "[AppProvider useEffect init] Token refresh successful during init."
+          "[AppProvider useEffect init] Token refresh/check successful during init."
         );
       } else {
         console.warn(
-          "[AppProvider useEffect init] Token refresh FAILED during init."
+          "[AppProvider useEffect init] Token refresh FAILED or no initial token during init."
         );
       }
 
@@ -1395,7 +1403,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         console.log(
           "[AppProvider useEffect init] No effective access token after initial load/refresh. Logging out and skipping data fetches."
         );
-        logout(true);
+        // logout(true) would have been called by refreshTokenLogicInternal if it failed
+        if (accessToken) logout(true); // Call only if accessToken was somehow still set
         setIsLoadingState(false);
         setIsActivitiesLoading(false);
         setIsCategoriesLoading(false);
@@ -1588,9 +1597,11 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           (err.message.toLowerCase().includes("unauthorized") ||
             err.message.includes("401") ||
             err.message.toLowerCase().includes("session expired") ||
+            err.message.toLowerCase().includes("session update failed") ||
             err.message.toLowerCase().includes("no jwt token available"))
         ) {
-          logout(true);
+          // logout(true) should have been called by fetchWithAuth or refreshTokenLogicInternal
+           if (accessToken) logout(true); // Call only if accessToken was somehow still set
         } else {
           createApiErrorToast(
             err,
@@ -1598,7 +1609,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             "toastActivityLoadErrorTitle",
             "loading",
             t,
-            `/activities`
+            `Initial data load`
           );
         }
       } finally {
@@ -1616,7 +1627,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
 
     loadClientSideDataAndFetchInitial();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // Intentionally empty to run once on mount
+
 
   useEffect(() => {
     if (typeof window === "undefined" || isLoadingState) return;
@@ -2008,7 +2020,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: formData.toString(),
-          credentials: "include", // set refresh-token cookie
+          credentials: "include", 
         });
         if (!response.ok) {
           const errorData = await response
@@ -2044,189 +2056,188 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           stableAddUINotification({ title, description });
           showSystemNotification(title, description);
         }
-        if (tokenData.access_token) {
-          try {
-            setIsActivitiesLoading(true);
-            setIsCategoriesLoading(true);
-            setIsAssigneesLoading(true);
-            setIsHistoryLoading(true);
-            setIsHabitsLoading(true);
 
-            const [
-              actResponse,
-              catResponse,
-              userResponse,
-              histResponse,
-              allOccurrencesResponse,
-              habitsResponse,
-              habitCompletionsResponse,
-            ] = await Promise.all([
-              fetchWithAuth(`/activities`),
-              fetchWithAuth(`/categories`),
-              fetchWithAuth(`/users`),
-              fetchWithAuth(`/history`),
-              fetchWithAuth(`/activity-occurrences`),
-              fetchWithAuth(`/habits`),
-              fetchWithAuth(`/habit_completions`),
-            ]);
+        // Data fetching starts AFTER successful token acquisition and processing
+        try {
+          setIsActivitiesLoading(true);
+          setIsCategoriesLoading(true);
+          setIsAssigneesLoading(true);
+          setIsHistoryLoading(true);
+          setIsHabitsLoading(true);
 
-            if (!actResponse.ok)
-              throw new Error(
-                `Activities fetch failed: HTTP ${actResponse.status} ${actResponse.statusText}`
-              );
-            const backendActivitiesList: BackendActivityListItem[] =
-              await actResponse.json();
+          const [
+            actResponse,
+            catResponse,
+            userResponse,
+            histResponse,
+            allOccurrencesResponse,
+            habitsResponse,
+            habitCompletionsResponse,
+          ] = await Promise.all([
+            fetchWithAuth(`/activities`),
+            fetchWithAuth(`/categories`),
+            fetchWithAuth(`/users`),
+            fetchWithAuth(`/history`),
+            fetchWithAuth(`/activity-occurrences`),
+            fetchWithAuth(`/habits`),
+            fetchWithAuth(`/habit_completions`),
+          ]);
 
-            if (!catResponse.ok)
-              throw new Error(
-                `Categories fetch failed: HTTP ${catResponse.status} ${catResponse.statusText}`
-              );
-            const backendCategories: BackendCategory[] = await catResponse.json();
-            setAllCategories(
-              backendCategories.map((cat) => backendToFrontendCategory(cat))
+          if (!actResponse.ok)
+            throw new Error(
+              `Activities fetch failed: HTTP ${actResponse.status} ${actResponse.statusText}`
             );
+          const backendActivitiesList: BackendActivityListItem[] =
+            await actResponse.json();
 
-            if (!userResponse.ok)
-              throw new Error(
-                `Users fetch failed: HTTP ${userResponse.status} ${userResponse.statusText}`
-              );
-            const backendUsers: BackendUser[] = await userResponse.json();
-            setAllAssignees(
-              backendUsers.map((user) => backendToFrontendAssignee(user))
+          if (!catResponse.ok)
+            throw new Error(
+              `Categories fetch failed: HTTP ${catResponse.status} ${catResponse.statusText}`
             );
+          const backendCategories: BackendCategory[] = await catResponse.json();
+          setAllCategories(
+            backendCategories.map((cat) => backendToFrontendCategory(cat))
+          );
 
-            if (!histResponse.ok)
-              throw new Error(
-                `History fetch failed: HTTP ${histResponse.status} ${histResponse.statusText}`
-              );
-            const backendHistoryItems: BackendHistory[] = await histResponse.json();
-            setHistoryLog(
-              backendHistoryItems.map((item) => backendToFrontendHistory(item))
+          if (!userResponse.ok)
+            throw new Error(
+              `Users fetch failed: HTTP ${userResponse.status} ${userResponse.statusText}`
             );
+          const backendUsers: BackendUser[] = await userResponse.json();
+          setAllAssignees(
+            backendUsers.map((user) => backendToFrontendAssignee(user))
+          );
 
-            let allBackendOccurrences: BackendActivityOccurrence[] = [];
-            if (allOccurrencesResponse.ok) {
-              allBackendOccurrences = await allOccurrencesResponse.json();
-            } else {
+          if (!histResponse.ok)
+            throw new Error(
+              `History fetch failed: HTTP ${histResponse.status} ${histResponse.statusText}`
+            );
+          const backendHistoryItems: BackendHistory[] = await histResponse.json();
+          setHistoryLog(
+            backendHistoryItems.map((item) => backendToFrontendHistory(item))
+          );
+
+          let allBackendOccurrences: BackendActivityOccurrence[] = [];
+          if (allOccurrencesResponse.ok) {
+            allBackendOccurrences = await allOccurrencesResponse.json();
+          } else {
+            console.warn(
+              `[AppProvider] Failed to fetch all occurrences after login: HTTP ${allOccurrencesResponse.status}`
+            );
+          }
+
+          const newPersonal: Activity[] = [],
+            newWork: Activity[] = [];
+          backendActivitiesList.forEach((beListItem) => {
+            if (!beListItem || typeof beListItem.id !== "number") {
               console.warn(
-                `[AppProvider] Failed to fetch all occurrences after login: HTTP ${allOccurrencesResponse.status}`
+                "[AppProvider] Encountered a null/undefined or ID-less item in backendActivitiesList during login. Skipping.",
+                beListItem
               );
+              return;
             }
-
-            const newPersonal: Activity[] = [],
-              newWork: Activity[] = [];
-            backendActivitiesList.forEach((beListItem) => {
-              if (!beListItem || typeof beListItem.id !== "number") {
-                console.warn(
-                  "[AppProvider] Encountered a null/undefined or ID-less item in backendActivitiesList during login. Skipping.",
-                  beListItem
-                );
-                return;
-              }
-              try {
-                let feAct = backendToFrontendActivity(beListItem, appModeState);
-                const activityOccurrences = allBackendOccurrences.filter(
-                  (occ) => occ.activity_id === feAct.id
-                );
-                const occurrencesMap: Record<string, boolean> = {};
-                activityOccurrences.forEach((occ) => {
-                  try {
-                    const dateKey = formatISO(parseISO(occ.date), {
-                      representation: "date",
-                    });
-                    occurrencesMap[dateKey] = occ.complete;
-                  } catch (e) {
-                    console.warn(
-                      `[AppProvider] Failed to parse occurrence date for activity ${feAct.id} after login: ${occ.date}`,
-                      e
-                    );
-                  }
-                });
-                feAct.completedOccurrences = occurrencesMap;
-                if (feAct.recurrence?.type === "none" && feAct.createdAt) {
-                  const mainOccurrenceDate = new Date(feAct.createdAt);
-                  if (!isNaN(mainOccurrenceDate.getTime())) {
-                    const mainOccurrenceDateKey = formatISO(mainOccurrenceDate, {
-                      representation: "date",
-                    });
-                    if (occurrencesMap.hasOwnProperty(mainOccurrenceDateKey)) {
-                      feAct.completed = occurrencesMap[mainOccurrenceDateKey];
-                      feAct.completedAt = feAct.completed
-                        ? mainOccurrenceDate.getTime()
-                        : null;
-                    }
+            try {
+              let feAct = backendToFrontendActivity(beListItem, appModeState);
+              const activityOccurrences = allBackendOccurrences.filter(
+                (occ) => occ.activity_id === feAct.id
+              );
+              const occurrencesMap: Record<string, boolean> = {};
+              activityOccurrences.forEach((occ) => {
+                try {
+                  const dateKey = formatISO(parseISO(occ.date), {
+                    representation: "date",
+                  });
+                  occurrencesMap[dateKey] = occ.complete;
+                } catch (e) {
+                  console.warn(
+                    `[AppProvider] Failed to parse occurrence date for activity ${feAct.id} after login: ${occ.date}`,
+                    e
+                  );
+                }
+              });
+              feAct.completedOccurrences = occurrencesMap;
+              if (feAct.recurrence?.type === "none" && feAct.createdAt) {
+                const mainOccurrenceDate = new Date(feAct.createdAt);
+                if (!isNaN(mainOccurrenceDate.getTime())) {
+                  const mainOccurrenceDateKey = formatISO(mainOccurrenceDate, {
+                    representation: "date",
+                  });
+                  if (occurrencesMap.hasOwnProperty(mainOccurrenceDateKey)) {
+                    feAct.completed = occurrencesMap[mainOccurrenceDateKey];
+                    feAct.completedAt = feAct.completed
+                      ? mainOccurrenceDate.getTime()
+                      : null;
                   }
                 }
-                if (feAct.appMode === "personal") newPersonal.push(feAct);
-                else newWork.push(feAct);
-              } catch (conversionError) {
-                console.error(
-                  `[AppProvider] Failed to convert backend activity list item (ID: ${
-                    beListItem.id || "unknown"
-                  }) to frontend format during login. Skipping this item.`,
-                  conversionError,
-                  beListItem
-                );
               }
-            });
-            setPersonalActivities(newPersonal);
-            setWorkActivities(newWork);
-
-            if (!habitsResponse.ok)
-              throw new Error(
-                `Habits fetch failed: HTTP ${habitsResponse.status} ${habitsResponse.statusText}`
-              );
-            const backendHabits: BackendHabit[] = await habitsResponse.json();
-            setHabits(backendHabits.map((h) => backendToFrontendHabit(h)));
-
-            if (!habitCompletionsResponse.ok)
-              throw new Error(
-                `Habit completions fetch failed: HTTP ${habitCompletionsResponse.status} ${habitCompletionsResponse.statusText}`
-              );
-            const backendCompletions: BackendHabitCompletion[] =
-              await habitCompletionsResponse.json();
-            const newHabitCompletions: HabitCompletions = {};
-            backendCompletions.forEach((comp) => {
-              const dateKey = formatISO(parseISO(comp.completion_date), {
-                representation: "date",
-              });
-              if (!newHabitCompletions[comp.habit_id])
-                newHabitCompletions[comp.habit_id] = {};
-              if (!newHabitCompletions[comp.habit_id][dateKey])
-                newHabitCompletions[comp.habit_id][dateKey] = {};
-              newHabitCompletions[comp.habit_id][dateKey][comp.slot_id] = {
-                completed: comp.is_completed,
-                completionId: comp.id,
-              };
-            });
-            setHabitCompletions(newHabitCompletions);
-          } catch (err) {
-            if (
-              err instanceof Error &&
-              (err.message.toLowerCase().includes("unauthorized") ||
-                err.message.includes("401"))
-            ) {
-              logout();
-            } else {
-              createApiErrorToast(
-                err,
-                toast,
-                "toastActivityLoadErrorTitle",
-                "loading",
-                t,
-                `/activities`
+              if (feAct.appMode === "personal") newPersonal.push(feAct);
+              else newWork.push(feAct);
+            } catch (conversionError) {
+              console.error(
+                `[AppProvider] Failed to convert backend activity list item (ID: ${
+                  beListItem.id || "unknown"
+                }) to frontend format during login. Skipping this item.`,
+                conversionError,
+                beListItem
               );
             }
-          } finally {
-            setIsActivitiesLoading(false);
-            setIsCategoriesLoading(false);
-            setIsAssigneesLoading(false);
-            setIsHistoryLoading(false);
-            setIsHabitsLoading(false);
-          }
+          });
+          setPersonalActivities(newPersonal);
+          setWorkActivities(newWork);
+
+          if (!habitsResponse.ok)
+            throw new Error(
+              `Habits fetch failed: HTTP ${habitsResponse.status} ${habitsResponse.statusText}`
+            );
+          const backendHabits: BackendHabit[] = await habitsResponse.json();
+          setHabits(backendHabits.map((h) => backendToFrontendHabit(h)));
+
+          if (!habitCompletionsResponse.ok)
+            throw new Error(
+              `Habit completions fetch failed: HTTP ${habitCompletionsResponse.status} ${habitCompletionsResponse.statusText}`
+            );
+          const backendCompletions: BackendHabitCompletion[] =
+            await habitCompletionsResponse.json();
+          const newHabitCompletions: HabitCompletions = {};
+          backendCompletions.forEach((comp) => {
+            const dateKey = formatISO(parseISO(comp.completion_date), {
+              representation: "date",
+            });
+            if (!newHabitCompletions[comp.habit_id])
+              newHabitCompletions[comp.habit_id] = {};
+            if (!newHabitCompletions[comp.habit_id][dateKey])
+              newHabitCompletions[comp.habit_id][dateKey] = {};
+            newHabitCompletions[comp.habit_id][dateKey][comp.slot_id] = {
+              completed: comp.is_completed,
+              completionId: comp.id,
+            };
+          });
+          setHabitCompletions(newHabitCompletions);
+        } catch (err) {
+            // Check if accessToken is null, indicating logout was already handled by fetchWithAuth/refreshTokenLogic
+            if (!accessToken) { 
+                console.warn("[AppProvider login catch] Logout seems to have been initiated by a deeper auth error. Skipping redundant logout call.");
+            } else if (
+                err instanceof Error &&
+                (err.message.toLowerCase().includes("unauthorized") ||
+                err.message.includes("401") ||
+                err.message.toLowerCase().includes("session update failed") ||
+                err.message.toLowerCase().includes("session expired") ||
+                err.message.toLowerCase().includes("no jwt token available"))
+            ) {
+                logout(true); // Explicitly pass true as this is a token-related failure
+            } else {
+                createApiErrorToast(err, toast, "toastActivityLoadErrorTitle", "loading", t, "initial data fetch");
+            }
+        } finally {
+          setIsActivitiesLoading(false);
+          setIsCategoriesLoading(false);
+          setIsAssigneesLoading(false);
+          setIsHistoryLoading(false);
+          setIsHabitsLoading(false);
         }
         return true;
-      } catch (err) {
+      } catch (err) { // Error from /token call or decodeAndSetAccessToken
         createApiErrorToast(
           err,
           toast,
@@ -2238,8 +2249,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         return false;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       API_BASE_URL,
       decodeAndSetAccessToken,
@@ -2249,7 +2260,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       showSystemNotification,
       fetchWithAuth,
       appModeState,
-      logout,
+      logout, // accessToken is implicitly a dependency via fetchWithAuth and logout
     ]
   );
 
@@ -2315,8 +2326,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         return false;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fetchWithAuth, getCurrentUserId, t, toast, logout, API_BASE_URL]
   );
 
@@ -2380,8 +2391,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         throw err;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fetchWithAuth, toast, t, logout, API_BASE_URL]
   );
 
@@ -2463,8 +2474,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         throw err;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fetchWithAuth, toast, t, logout, API_BASE_URL]
   );
 
@@ -2533,8 +2544,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         throw err;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fetchWithAuth, allCategories, toast, t, logout, API_BASE_URL]
   );
 
@@ -2618,8 +2629,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         throw err;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fetchWithAuth, toast, t, logout, API_BASE_URL]
   );
 
@@ -2712,8 +2723,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         throw err;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fetchWithAuth, assignees, toast, t, logout, API_BASE_URL]
   );
 
@@ -2783,8 +2794,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         throw err;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fetchWithAuth, assignees, toast, t, logout, API_BASE_URL]
   );
 
@@ -2911,8 +2922,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         throw err;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       fetchWithAuth,
       appModeState,
@@ -3088,8 +3099,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         throw err;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       fetchWithAuth,
       appModeState,
@@ -3193,8 +3204,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         throw err;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       fetchWithAuth,
       personalActivities,
@@ -3281,8 +3292,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         return null;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       fetchWithAuth,
       personalActivities,
@@ -3366,8 +3377,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         throw err;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       fetchWithAuth,
       personalActivities,
@@ -3438,8 +3449,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         throw err;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       fetchWithAuth,
       personalActivities,
@@ -3622,8 +3633,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           );
         }
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       fetchWithAuth,
       personalActivities,
@@ -3761,8 +3772,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         }
         return null;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fetchWithAuth, appModeState, t, toast, logout, API_BASE_URL]
   );
 
@@ -3819,8 +3830,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         throw err;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fetchWithAuth, toast, t, logout, API_BASE_URL]
   );
 
@@ -3881,8 +3892,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         throw err;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fetchWithAuth, habits, toast, t, logout, API_BASE_URL]
   );
 
@@ -3944,8 +3955,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setError((err as Error).message);
         throw err;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fetchWithAuth, habits, toast, t, logout, API_BASE_URL]
   );
 
@@ -4051,8 +4062,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         }
         setError((err as Error).message);
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fetchWithAuth, habits, toast, t, logout, API_BASE_URL]
   );
 
@@ -4116,7 +4127,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () =>
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [isAuthenticated, appPinState]);
+  }, [isAuthenticated, appPinState, isLoadingState]); // Added isLoadingState
 
   const combinedIsLoading =
     isLoadingState ||
@@ -4232,3 +4243,4 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>
   );
 };
+
