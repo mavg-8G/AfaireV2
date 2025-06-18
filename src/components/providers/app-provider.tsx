@@ -826,8 +826,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   const accessTokenRef = useRef<string | null>(null);
   const decodedJwtRef = useRef<DecodedToken | null>(null);
 
-  // Effects to sync state to refs are still useful for general reactivity,
-  // but critical paths will update refs directly.
   useEffect(() => {
     accessTokenRef.current = accessTokenState;
   }, [accessTokenState]);
@@ -1211,7 +1209,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           console.error(
             `[AppProvider fetchWithAuth] Token refresh failed for ${fullUrl}. Logout should have been initiated by refresh logic.`
           );
-          if (accessTokenRef.current) { // Check ref again, as logout might have cleared it
+          if (accessTokenRef.current) { 
              console.warn("[AppProvider fetchWithAuth] Throwing error: Session update failed (refresh failed).");
              throw new Error(
               "Session update failed. Please try logging in again. (Refresh failed before request)"
@@ -1306,7 +1304,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           console.error(
             `[AppProvider fetchWithAuth] Token refresh failed after 401 for ${fullUrl}. Logout should have been initiated.`
           );
-           if (accessTokenRef.current) { // Check ref again
+           if (accessTokenRef.current) { 
              console.warn("[AppProvider fetchWithAuth] Throwing error: Session update failed (refresh failed post-401).");
              throw new Error(
               `Session update failed. Please try logging in again. (Details: Refresh failed after 401 for ${fullUrl})`
@@ -1472,7 +1470,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           fetchWithAuth(`/history`),
           fetchWithAuth(`/activity-occurrences`),
           fetchWithAuth(`/habits`),
-          fetchWithAuth(`/habit_completion`), 
+          fetchWithAuth(`/habit_completions`), 
         ]);
 
         if (!actResponse.ok)
@@ -2067,7 +2065,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             fetchWithAuth(`/history`),
             fetchWithAuth(`/activity-occurrences`),
             fetchWithAuth(`/habits`),
-            fetchWithAuth(`/habit_completion`), 
+            fetchWithAuth(`/habit_completions`), 
           ]);
 
           if (!actResponse.ok)
@@ -3652,7 +3650,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       const payload: HabitCreateData = {
         name: habitData.name,
         icon_name: habitData.icon_name,
-        slots: habitData.slots.map(s => ({ // Ensure no IDs are sent for new slots
+        slots: habitData.slots.map(s => ({ 
             name: s.name,
             default_time: s.default_time || undefined,
         })),
@@ -3721,7 +3719,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             name: s_form.name,
             default_time: s_form.default_time || undefined,
         };
-        if (typeof s_form.id === 'number') {
+        if (typeof s_form.id === 'number') { // Only include ID if it's a number (existing slot)
             slot_payload.id = s_form.id;
         }
         return slot_payload;
@@ -3871,7 +3869,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             is_completed: newCompletedState,
           };
           const response = await fetchWithAuth( 
-            `/habit_completion/${currentStatus.completionId}`, 
+            `/habit_completions/${currentStatus.completionId}`, 
             {
               method: "PUT",
               body: JSON.stringify(payload),
@@ -3896,7 +3894,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             completion_date: parseISO(dateKey).toISOString(),
             is_completed: newCompletedState,
           };
-          const response = await fetchWithAuth(`/habit_completion`, { 
+          const response = await fetchWithAuth(`/habit_completions`, { 
             method: "POST",
             body: JSON.stringify(payload),
           });
@@ -3949,7 +3947,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             "toastHabitUpdatedTitle",
             "updating",
             t,
-            `/habit_completion` 
+            `/habit_completions` 
           );
         }
         setError((err as Error).message);
