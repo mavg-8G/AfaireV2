@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ArrowLeft, History as HistoryIconLucide, User, Briefcase, Tag, Shield, Loader2, Brain, Users, Globe } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { formatInTimeZone, zonedTimeToUtc, utcToZonedTime } from 'date-fns-tz';
+import { formatInTimeZone, toZonedTime } from 'date-fns-tz'; // Corrected import
 import { enUS, es, fr } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -49,7 +49,8 @@ export default function HistoryPage() {
     return historyLog.reduce((acc, entry) => {
       try {
         // Convert original UTC timestamp to the selected timezone for grouping
-        const zonedEntryDate = utcToZonedTime(new Date(entry.timestamp), selectedTimezone);
+        const entryDateUTC = new Date(entry.timestamp);
+        const zonedEntryDate = toZonedTime(entryDateUTC, selectedTimezone); // Corrected usage
         const dayKey = formatInTimeZone(zonedEntryDate, selectedTimezone, 'yyyy-MM-dd');
 
         if (!acc[dayKey]) {
@@ -133,9 +134,25 @@ export default function HistoryPage() {
                         const scopeInfo = getScopeInfo(entry.scope);
                         let actionText = entry.backendAction || entry.actionKey;
                         try {
-                          actionText = t(entry.actionKey, entry.details as any);
+                           // Ensure details are suitable for the translation function
+                           const translatableDetails: Record<string, string | number | boolean> = {};
+                           if (entry.details) {
+                             for (const key in entry.details) {
+                               if (Object.prototype.hasOwnProperty.call(entry.details, key)) {
+                                 const value = entry.details[key];
+                                 if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+                                   translatableDetails[key] = value;
+                                 } else if (value === null || value === undefined) {
+                                   translatableDetails[key] = t('notSetValuePlaceholder');
+                                 } else {
+                                   translatableDetails[key] = String(value);
+                                 }
+                               }
+                             }
+                           }
+                          actionText = t(entry.actionKey as any, translatableDetails);
                         } catch (e) {
-                          console.warn(`Missing translation for history action key: ${entry.actionKey}`);
+                          console.warn(`Missing translation or invalid params for history action key: ${entry.actionKey}. Details:`, entry.details, "Error:", e);
                         }
 
                         const formattedTime = formatTimestampForDisplay(entry.timestamp);
