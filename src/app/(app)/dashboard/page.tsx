@@ -3,6 +3,7 @@
 
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation'; // Added this import
 import type { BarChartDataItem, BarProps as ChartBarProps } from '@/components/ui/chart';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -943,3 +944,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
