@@ -42,7 +42,7 @@ import { ArrowLeft, LayoutDashboard, ListChecks, BarChart3, CheckCircle, Circle,
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 import { v4 as uuidv4 } from 'uuid';
 import dynamic from 'next/dynamic';
 import ActivityListItem from '@/components/calendar/activity-list-item';
@@ -211,15 +211,18 @@ function generateHabitSlotOccurrencesForRange(
   daysInInterval.forEach(day => {
     const dateKey = formatISO(day, { representation: 'date' });
     allHabits.forEach(habit => {
-      habit.slots.forEach(slot => {
-        const completionStatus = allHabitCompletions[habit.id]?.[dateKey]?.[slot.id];
-        occurrences.push({
-          habit,
-          slot,
-          date: day,
-          isCompleted: !!completionStatus?.completed,
+      // Only include slots for days on or after the habit was created
+      if (day >= new Date(habit.createdAt)) {
+        habit.slots.forEach(slot => {
+          const completionStatus = allHabitCompletions[habit.id]?.[dateKey]?.[slot.id];
+          occurrences.push({
+            habit,
+            slot,
+            date: day,
+            isCompleted: !!completionStatus?.completed,
+          });
         });
-      });
+      }
     });
   });
   return occurrences;
@@ -992,3 +995,5 @@ export default function DashboardPage() {
   );
 }
 
+
+    

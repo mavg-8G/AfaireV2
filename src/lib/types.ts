@@ -288,24 +288,25 @@ export interface Habit {
   iconName: string;
   icon: LucideIcon;
   slots: HabitSlot[];
+  createdAt: number; // Timestamp of habit creation
 }
 
 export interface HabitSlotCreateData {
   id?: number;
   name: string;
   default_time?: string;
-  // order is implicit from array order on backend for create
+  order?: number;
 }
 export interface HabitCreateData {
   name: string;
   icon_name: string;
-  slots: Omit<HabitSlotCreateData, 'id'>[];
+  slots: Omit<HabitSlotCreateData, 'id' | 'order'>[]; // Order handled by backend
 }
 
 export interface HabitUpdateData {
   name?: string;
   icon_name?: string;
-  slots?: HabitSlotCreateData[];
+  slots?: HabitSlotCreateData[]; // Include ID for existing slots
 }
 
 export interface BackendHabitSlot {
@@ -319,6 +320,7 @@ export interface BackendHabit {
   user_id: number;
   name: string;
   icon_name: string;
+  created_at: string; // ISO datetime string from backend
   slots: BackendHabitSlot[];
 }
 

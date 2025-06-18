@@ -38,10 +38,10 @@ import type {
   BackendHistoryCreatePayload,
   BackendCategoryUpdatePayload,
   AppContextType as AppContextTypeImport,
-  BackendActivityResponse, // Updated type
+  BackendActivityResponse, 
   BackendActivityTodosResponse,
   BackendActivityOccurrencesListResponse,
-  BackendActivityOccurrenceResponse, // Added for individual occurrence use if needed
+  BackendActivityOccurrenceResponse, 
   BackendActivityOccurrence,
   BackendActivityOccurrenceCreate,
   BackendActivityOccurrenceUpdate,
@@ -345,7 +345,7 @@ const backendToFrontendAssignee = (backendUser: BackendUser): Assignee => ({
 });
 
 const backendToFrontendActivity = (
-  backendActivityInput: BackendActivityResponse, // Changed from BackendActivity | BackendActivityListItem
+  backendActivityInput: BackendActivityResponse, 
   currentAppMode: AppMode
 ): Activity => {
 
@@ -446,7 +446,6 @@ const backendToFrontendActivity = (
     dayOfMonth: backendActivityInput.day_of_month ?? undefined,
   };
 
-  // Todos and occurrences will be populated by fetchAndSetSpecificActivityDetails
   const todosFromBackend: Todo[] = []; 
   const completedOccurrencesMap: Record<string, boolean> = {}; 
 
@@ -454,15 +453,12 @@ const backendToFrontendActivity = (
   let finalCompletedStatus: boolean | undefined = undefined;
   let finalCompletedAt: number | null | undefined = undefined;
 
-  // This logic for single, non-recurring activities relies on completedOccurrencesMap
-  // which will be populated later for summary items, or by fetchAndSetSpecificActivityDetails.
   if (recurrenceRule.type === "none") {
     const mainOccurrenceDate = new Date(createdAtTimestamp);
     if (!isNaN(mainOccurrenceDate.getTime())) {
       const mainOccurrenceDateKey = formatISO(mainOccurrenceDate, {
         representation: "date",
       });
-      // If completedOccurrencesMap is already populated (e.g. from global fetch)
       if (completedOccurrencesMap.hasOwnProperty(mainOccurrenceDateKey)) {
         finalCompletedStatus = completedOccurrencesMap[mainOccurrenceDateKey];
         if (finalCompletedStatus) {
@@ -483,7 +479,7 @@ const backendToFrontendActivity = (
     id: backendActivityInput.id,
     title: backendActivityInput?.title || "Untitled Activity",
     categoryId: backendActivityInput.category_id,
-    todos: todosFromBackend, // Initialize as empty, to be filled later
+    todos: todosFromBackend, 
     createdAt: createdAtTimestamp,
     time: backendActivityInput?.time || "00:00",
     notes: backendActivityInput?.notes ?? undefined,
@@ -491,13 +487,13 @@ const backendToFrontendActivity = (
       recurrenceRule.type === "none" ? { type: "none" } : recurrenceRule,
     completed: finalCompletedStatus,
     completedAt: finalCompletedAt,
-    completedOccurrences: completedOccurrencesMap, // Initialize as empty
+    completedOccurrences: completedOccurrencesMap, 
     responsiblePersonIds: backendActivityInput.responsible_ids || [],
     appMode: (backendActivityInput.mode === "both"
       ? currentAppMode
       : backendActivityInput?.mode || currentAppMode) as AppMode,
     created_by_user_id: backendActivityInput.created_by_user_id,
-    isSummary: true, // Default to summary, fetchAndSetSpecificActivityDetails will set to false
+    isSummary: true, 
   };
 };
 
@@ -723,19 +719,37 @@ Error Message: ${error.message || "No message"}.`;
   });
 };
 
-const backendToFrontendHabit = (beHabit: BackendHabit): Habit => ({
-  id: beHabit.id,
-  user_id: beHabit.user_id,
-  name: beHabit.name,
-  iconName: beHabit.icon_name,
-  icon: getIconComponent(beHabit.icon_name),
-  slots: (beHabit.slots || []).map((s: BackendHabitSlot) => ({
-    id: s.id,
-    name: s.name,
-    default_time: s.default_time || undefined,
-    order: s.order,
-  })),
-});
+const backendToFrontendHabit = (beHabit: BackendHabit): Habit => {
+  let createdAtTimestamp: number;
+  if (beHabit.created_at && typeof beHabit.created_at === 'string') {
+    try {
+      createdAtTimestamp = parseISO(beHabit.created_at).getTime();
+      if (isNaN(createdAtTimestamp)) throw new Error("Parsed habit created_at timestamp is NaN");
+    } catch (e) {
+      console.warn(`[AppProvider] Failed to parse created_at "${beHabit.created_at}" for habit ID ${beHabit.id}. Defaulting to Epoch.`, e);
+      createdAtTimestamp = 0; // Default to Epoch if parsing fails
+    }
+  } else {
+    console.warn(`[AppProvider] Missing created_at for habit ID ${beHabit.id}. Defaulting to Epoch for historical calculations.`);
+    createdAtTimestamp = 0; // Default to Epoch if not provided
+  }
+
+  return {
+    id: beHabit.id,
+    user_id: beHabit.user_id,
+    name: beHabit.name,
+    iconName: beHabit.icon_name,
+    icon: getIconComponent(beHabit.icon_name),
+    slots: (beHabit.slots || []).map((s: BackendHabitSlot) => ({
+      id: s.id,
+      name: s.name,
+      default_time: s.default_time || undefined,
+      order: s.order,
+    })),
+    createdAt: createdAtTimestamp,
+  };
+};
+
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -949,8 +963,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
           }
         }
         
-        accessTokenRef.current = tokenString;
-        decodedJwtRef.current = newDecodedJwt;
+        accessTokenRef.current = tokenString; 
+        decodedJwtRef.current = newDecodedJwt; 
         
         setAccessTokenState(tokenString);
         setDecodedJwtState(newDecodedJwt);
@@ -1385,7 +1399,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           catResponse,
           userResponse,
           histResponse,
-          allOccurrencesResponse, // Global occurrences
+          allOccurrencesResponse, 
           habitsResponse,
           habitCompletionsResponse,
         ] = await Promise.all([
@@ -1393,7 +1407,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           fetchWithAuth(`/categories`),
           fetchWithAuth(`/users`),
           fetchWithAuth(`/history`),
-          fetchWithAuth(`/activity-occurrences`), // Fetch all occurrences initially
+          fetchWithAuth(`/activity-occurrences`), 
           fetchWithAuth(`/habits`),
           fetchWithAuth(`/habit_completions`), 
         ]);
@@ -1402,7 +1416,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           throw new Error(
             `Activities fetch failed: HTTP ${actResponse.status} ${actResponse.statusText}`
           );
-        const backendActivitiesList: BackendActivityResponse[] = // Updated type
+        const backendActivitiesList: BackendActivityResponse[] = 
           await actResponse.json();
 
         if (!catResponse.ok)
@@ -1463,9 +1477,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           }
           try {
             let feAct = backendToFrontendActivity(beListItem, appModeState); 
-            // Populate completedOccurrences from the globally fetched map
             feAct.completedOccurrences = allGlobalOccurrencesMap[feAct.id] || {};
-            // For non-recurring, set top-level completed status based on its single occurrence
             if (feAct.recurrence?.type === 'none') {
                 const mainOccurrenceDateKey = formatISO(new Date(feAct.createdAt), { representation: 'date' });
                 if (feAct.completedOccurrences.hasOwnProperty(mainOccurrenceDateKey)) {
@@ -2017,7 +2029,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             throw new Error(
               `Activities fetch failed: HTTP ${actResponse.status} ${actResponse.statusText}`
             );
-          const backendActivitiesList: BackendActivityResponse[] = // Updated type
+          const backendActivitiesList: BackendActivityResponse[] = 
             await actResponse.json();
 
           if (!catResponse.ok)
@@ -2754,7 +2766,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         responsiblePersonIds: activityData.responsiblePersonIds,
         appMode: activityData.appMode,
         completedOccurrences: {},
-        isSummary: false, // Initially false, though it will be a full object from backend
+        isSummary: false, 
       };
 
       const payload = frontendToBackendActivityPayload(
@@ -2783,14 +2795,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         }
 
         const newBackendActivityResponse: BackendActivityResponse = await response.json();
-        // After creation, fetch full details to get todos and occurrences correctly.
-        // The backend's POST /activities seems to return the detailed Activity, not ActivityResponse.
-        // This needs to be confirmed. Assuming POST returns the full object for now.
-        // If POST returns only ActivityResponse, we'd need to call fetchAndSetSpecificActivityDetails here.
-        // For now, assuming the backend returns a full Activity-like object or we fetch details.
-        // The user's backend create_activity returns db_activity which should be full.
         
-        // To be safe and ensure consistency, let's fetch full details after creation.
         const fullNewActivity = await fetchAndSetSpecificActivityDetails(newBackendActivityResponse.id);
 
         if (fullNewActivity) {
@@ -2848,11 +2853,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       logout,
       allCategories,
       dateFnsLocale,
-      // Removed direct dependency on fetchAndSetSpecificActivityDetails to avoid circular dependency issues.
-      // If fetchAndSetSpecificActivityDetails is needed here, it needs to be passed in or structured differently.
-      // For now, assuming direct update or simplified post-creation handling.
-      // Re-adding:
-      // fetchAndSetSpecificActivityDetails, // This will cause a re-render and AppProvider update
     ] 
   );
 
@@ -2909,14 +2909,13 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         });
         frontendActivity.completedOccurrences = newCompletedOccurrences;
 
-        // Update completed status for non-recurring activities based on its specific occurrence
         if (frontendActivity.recurrence?.type === 'none') {
             const mainOccurrenceDateKey = formatISO(new Date(frontendActivity.createdAt), { representation: 'date' });
             if (frontendActivity.completedOccurrences.hasOwnProperty(mainOccurrenceDateKey)) {
                 frontendActivity.completed = frontendActivity.completedOccurrences[mainOccurrenceDateKey];
                 frontendActivity.completedAt = frontendActivity.completed ? frontendActivity.createdAt : null;
             } else {
-                frontendActivity.completed = false; // Default if no occurrence found for its date
+                frontendActivity.completed = false; 
                 frontendActivity.completedAt = null;
             }
         }
@@ -2934,7 +2933,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           if (existingActivity) {
             return prevActivities.map((act) =>
               act.id === activityId
-                ? { ...act, ...frontendActivity } // Ensure all fields are spread correctly
+                ? { ...act, ...frontendActivity } 
                 : act
             );
           }
@@ -2982,14 +2981,12 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       );
      
       if (!activityToUpdate) {
-        // If not found, it might be a summary item not yet fully loaded. Fetch it.
         activityToUpdate = await fetchAndSetSpecificActivityDetails(activityId);
         if (!activityToUpdate) {
            console.error("[AppProvider] Activity not found for update, even after fetch:", activityId);
             toast({ variant: "destructive", title: "Error", description: "Activity not found for update." });
             return;
         }
-         // Re-determine setter after potential fetch
         currentActivitiesList = personalActivities.find(a => a.id === activityId) ? personalActivities : workActivities;
       }
        let targetSetter = personalActivities.find((a) => a.id === activityId)
@@ -2999,7 +2996,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
 
       const effectiveAppMode = updates.appMode || activityToUpdate.appMode;
       const payload = frontendToBackendActivityPayload(
-        { ...activityToUpdate, ...updates, appMode: effectiveAppMode }, // Ensure current data is used as base for payload
+        { ...activityToUpdate, ...updates, appMode: effectiveAppMode }, 
         true
       ) as BackendActivityUpdatePayload;
 
@@ -3020,7 +3017,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           );
         }
         
-        // After successful PUT, fetch the full, updated details
         const updatedFullActivity = await fetchAndSetSpecificActivityDetails(activityId);
         if (!updatedFullActivity) {
             throw new Error(`Failed to fetch full details after update for activity ${activityId}`);
@@ -3090,7 +3086,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       logout,
       allCategories,
       dateFnsLocale,
-      fetchAndSetSpecificActivityDetails, // Added dependency
+      fetchAndSetSpecificActivityDetails, 
     ] 
   );
 
@@ -3230,7 +3226,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           completed: newBackendTodo.complete,
         };
 
-        // Optimistically update, then fetch full details to ensure sync
+        
         const updateInList = (
           setter: React.Dispatch<React.SetStateAction<Activity[]>>
         ) => {
@@ -3240,7 +3236,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
                 ? {
                     ...act,
                     todos: [...act.todos, newFrontendTodo],
-                    isSummary: false, // Assume it's now detailed
+                    isSummary: false, 
                   }
                 : act
             )
@@ -3253,7 +3249,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             updateInList(setWorkActivities);
         }
         
-        // Fetch full details to ensure complete sync
         await fetchAndSetSpecificActivityDetails(activityId);
 
 
@@ -3281,8 +3276,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     },
     [
       fetchWithAuth,
-      personalActivities, // For find
-      workActivities, // For find
+      personalActivities, 
+      workActivities, 
       toast,
       t,
       logout,
@@ -3316,7 +3311,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           );
         }
         
-        // After successful update, fetch full activity details to resync
         await fetchAndSetSpecificActivityDetails(activityId);
 
       } catch (err) {
@@ -3368,7 +3362,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           );
         }
         
-        // After successful delete, fetch full activity details to resync
         await fetchAndSetSpecificActivityDetails(activityId);
 
       } catch (err) {
@@ -3417,7 +3410,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         : setWorkActivities;
 
       if (!masterActivity) {
-        // Try to fetch if it's a summary
         masterActivity = await fetchAndSetSpecificActivityDetails(masterActivityId);
         if (!masterActivity) {
           console.error("Master activity not found for toggling occurrence, even after fetch:", masterActivityId);
@@ -3434,7 +3426,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         occurrenceDateTimestamp
       ).toISOString();
 
-      // Optimistic UI update
       setter((prevActivities) =>
         prevActivities.map((act) =>
           act.id === masterActivityId
@@ -3445,7 +3436,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
                   [occurrenceDateKey]: completedState,
                 },
                 isSummary: false, 
-                // Update top-level completed status if non-recurring and this is its date
                 ...(act.recurrence?.type === 'none' && isSameDay(new Date(act.createdAt), new Date(occurrenceDateTimestamp)) && {
                     completed: completedState,
                     completedAt: completedState ? occurrenceDateTimestamp : null,
@@ -3456,7 +3446,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       );
 
       try {
-        // Check if an occurrence record already exists for this specific date
         const activityOccurrencesResponse = await fetchWithAuth(`/activities/${masterActivityId}/occurrences`);
         if (!activityOccurrencesResponse.ok) {
             throw new Error(`Failed to fetch occurrences for activity ${masterActivityId} before toggle. HTTP ${activityOccurrencesResponse.status}`);
@@ -3515,7 +3504,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           backendResponseOccurrence = await createResponse.json();
         }
 
-        // Final state update based on backend response
         setter((prevActivities) =>
           prevActivities.map((act) =>
             act.id === masterActivityId
@@ -3551,7 +3539,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         );
       } catch (err) {
         console.error("Error toggling occurrence completion:", err);
-        // Revert optimistic update on error
         setter((prevActivities) =>
           prevActivities.map((act) =>
             act.id === masterActivityId
