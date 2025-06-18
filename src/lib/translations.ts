@@ -257,6 +257,9 @@ export type Translations = {
   toastCategoryLoadErrorTitle: string; 
   toastAssigneeLoadErrorTitle: string; 
   historyLoadErrorTitle: string; 
+  toastHabitStartingSoonTitle: string;
+  toastHabitStartingSoonDescription: (params: { habitName: string, slotName: string, slotTime: string }) => string;
+
 
   // Dashboard Page
   dashboardTitle: string;
@@ -615,6 +618,8 @@ export const translations: Record<Locale, Translations> = {
     toastCategoryLoadErrorTitle: "Error Loading Categories",
     toastAssigneeLoadErrorTitle: "Error Loading Users",
     historyLoadErrorTitle: "Error Loading History",
+    toastHabitStartingSoonTitle: "Habit Starting Soon!",
+    toastHabitStartingSoonDescription: (params) => `Your habit "${params.habitName} - ${params.slotName}" is scheduled for ${params.slotTime}.`,
     dashboardTitle: "Activity Dashboard",
     dashboardMainDescription: "Track your activity progress and view summaries.",
     dashboardChartView: "Chart View",
@@ -654,7 +659,7 @@ export const translations: Record<Locale, Translations> = {
     dashboardCurrentStreak: "Current Streak",
     dashboardLongestStreak: "Longest Streak",
     dashboardStreakDays: (params) => `${params.count} day${params.count === 1 ? '' : 's'}`,
-    dashboardStreakInsight: "Consistency is key! Uncompleted tasks break streaks.", 
+    dashboardStreakInsight: "Consistency is key! Uncompleted tasks break streaks.",
     dashboardStreakInsightCombined: "Consistency is key! Uncompleted activities or habits break streaks.",
     dashboardFailureAnalysisTitle: "What days do you usually miss your items?",
     dashboardFailureAnalysisMostIncomplete: (params) => `The days with the most incomplete items are: ${params.days}.`,
@@ -685,7 +690,7 @@ export const translations: Record<Locale, Translations> = {
         changes.push(`Time from "${params.oldTime || 'Not Set'}" to "${params.time || 'Not Set'}"`);
       }
       if (changes.length > 0) {
-        if (params.oldTitle && params.oldTitle === params.title) desc += `"${params.title}".`; 
+        if (params.oldTitle && params.oldTitle === params.title) desc += `"${params.title}".`;
         desc += ` Changes: ${changes.join(', ')}.`;
       } else if (!params.oldTitle || params.oldTitle === params.title) {
          desc += ` (no details changed in log).`;
@@ -760,7 +765,7 @@ export const translations: Record<Locale, Translations> = {
     confirmDeleteHabitTitle: "Delete Habit?",
     confirmDeleteHabitDescription: (params) => `Are you sure you want to delete the habit "${params.habitName}"? All its completion data will also be removed.`,
     existingHabitsTitle: "Existing Habits",
-    viewEditManageHabits: "View, edit, and manage your current habits.", 
+    viewEditManageHabits: "View, edit, and manage your current habits.",
     habitsCount: (params) => `You have ${params.count} habit${params.count === 1 ? '' : 's'}.`,
     motivationalPhrases: [
       "The secret of getting ahead is getting started.",
@@ -1015,6 +1020,8 @@ export const translations: Record<Locale, Translations> = {
     toastCategoryLoadErrorTitle: "Error al Cargar Categorías",
     toastAssigneeLoadErrorTitle: "Error al Cargar Usuarios",
     historyLoadErrorTitle: "Error al Cargar Historial",
+    toastHabitStartingSoonTitle: "¡Hábito Comienza Pronto!",
+    toastHabitStartingSoonDescription: (params) => `Tu hábito "${params.habitName} - ${params.slotName}" está programado para las ${params.slotTime}.`,
     dashboardTitle: "Panel de Actividades",
     dashboardMainDescription: "Sigue el progreso de tus actividades y visualiza resúmenes.",
     dashboardChartView: "Vista de Gráfico",
@@ -1415,6 +1422,8 @@ export const translations: Record<Locale, Translations> = {
     toastCategoryLoadErrorTitle: "Erreur lors du Chargement des Catégories",
     toastAssigneeLoadErrorTitle: "Erreur lors du Chargement des Utilisateurs",
     historyLoadErrorTitle: "Erreur lors du Chargement de l'Historique",
+    toastHabitStartingSoonTitle: "Habitude Commençant Bientôt !",
+    toastHabitStartingSoonDescription: (params) => `Votre habitude "${params.habitName} - ${params.slotName}" est prévue pour ${params.slotTime}.`,
     dashboardTitle: "Tableau de bord des activités",
     dashboardMainDescription: "Suivez la progression de vos activités et consultez des résumés.",
     dashboardChartView: "Vue graphique",
@@ -1595,4 +1604,5 @@ type PathImpl<T, Key extends keyof T> =
 type Path<T> = PathImpl<T, keyof T> | keyof T;
 
 export type TranslationKey = Path<Translations['en']>;
+
 

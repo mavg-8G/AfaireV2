@@ -226,6 +226,8 @@ export interface UINotification {
   timestamp: number;
   read: boolean;
   activityId?: number | string;
+  habitId?: number; // For habit notifications
+  slotId?: number; // For habit notifications
   instanceDate?: number;
 }
 
