@@ -301,21 +301,22 @@ export interface Habit {
   slots: HabitSlot[];
 }
 
-export interface HabitSlotCreateData { // Used by frontend to send to backend for creation within a habit
+export interface HabitSlotCreateData { // Used by frontend to send to backend for creation/update within a habit
+  id?: number; // Optional ID for existing slots, used in updates
   name: string;
   default_time?: string;
-  // id is not sent for creation, order is set by backend implicitly by array order
+  // order is set by backend implicitly by array order during creation, or explicitly during update
 }
-export interface HabitCreateData { // Used by frontend to send to backend
+export interface HabitCreateData { // Used by frontend to send to backend for new habit
   name: string;
   icon_name: string; 
-  slots: HabitSlotCreateData[];
+  slots: Omit<HabitSlotCreateData, 'id'>[]; // No IDs for brand new slots in a new habit
 }
 
-export interface HabitUpdateData { // Used by frontend to send to backend
+export interface HabitUpdateData { // Used by frontend to send to backend for habit update
   name?: string;
   icon_name?: string;
-  slots?: HabitSlotCreateData[]; // Backend expects a list of slots for full replacement/update
+  slots?: HabitSlotCreateData[]; // Can contain existing slots (with ID) and new slots (without ID)
 }
 
 export interface BackendHabitSlot { 

@@ -47,6 +47,7 @@ import type {
   HabitSlot,
   HabitCompletions,
   HabitCreateData,
+  HabitSlotCreateData,
   HabitUpdateData,
   BackendHabit,
   BackendHabitCompletion,
@@ -1464,7 +1465,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           fetchWithAuth(`/history`),
           fetchWithAuth(`/activity-occurrences`),
           fetchWithAuth(`/habits`),
-          fetchWithAuth(`/habit_completion`), // Singular for GET list
+          fetchWithAuth(`/habit_completion`), 
         ]);
 
         if (!actResponse.ok)
@@ -2059,7 +2060,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             fetchWithAuth(`/history`),
             fetchWithAuth(`/activity-occurrences`),
             fetchWithAuth(`/habits`),
-            fetchWithAuth(`/habit_completion`), // Singular for GET list
+            fetchWithAuth(`/habit_completion`), 
           ]);
 
           if (!actResponse.ok)
@@ -3641,10 +3642,18 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
   const addHabit = useCallback(
     async (habitData: HabitCreateData) => {
       setError(null);
+      const payload: HabitCreateData = {
+        name: habitData.name,
+        icon_name: habitData.icon_name,
+        slots: habitData.slots.map(s => ({ // Ensure no IDs are sent for new slots
+            name: s.name,
+            default_time: s.default_time || undefined,
+        })),
+      };
       try {
         const response = await fetchWithAuth(`/habits`, { 
           method: "POST",
-          body: JSON.stringify(habitData),
+          body: JSON.stringify(payload),
         });
         if (!response.ok) {
           const errorData = await response
@@ -3699,10 +3708,30 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     async (habitId: number, habitData: HabitUpdateData) => {
       setError(null);
       const oldHabit = habits.find((h) => h.id === habitId);
+      
+      // Prepare slots payload: include ID for existing, omit for new
+      const slotsPayload: HabitSlotCreateData[] = (habitData.slots || []).map(s_form => {
+        const slot_payload: HabitSlotCreateData = {
+            name: s_form.name,
+            default_time: s_form.default_time || undefined,
+        };
+        // Only include 'id' if it's a number (existing slot from backend)
+        if (typeof s_form.id === 'number') {
+            slot_payload.id = s_form.id;
+        }
+        return slot_payload;
+      });
+
+      const payloadForBackend: HabitUpdateData = {
+        name: habitData.name,
+        icon_name: habitData.icon_name,
+        slots: slotsPayload,
+      };
+
       try {
         const response = await fetchWithAuth(`/habits/${habitId}`, { 
           method: "PUT",
-          body: JSON.stringify(habitData),
+          body: JSON.stringify(payloadForBackend),
         });
         if (!response.ok) {
           const errorData = await response
@@ -3837,7 +3866,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             is_completed: newCompletedState,
           };
           const response = await fetchWithAuth( 
-            `/habit_completion/${currentStatus.completionId}`, // Singular for PUT
+            `/habit_completions/${currentStatus.completionId}`, 
             {
               method: "PUT",
               body: JSON.stringify(payload),
@@ -3862,7 +3891,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             completion_date: parseISO(dateKey).toISOString(),
             is_completed: newCompletedState,
           };
-          const response = await fetchWithAuth(`/habit_completion`, { // Singular for POST
+          const response = await fetchWithAuth(`/habit_completions`, { 
             method: "POST",
             body: JSON.stringify(payload),
           });
@@ -3915,7 +3944,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             "toastHabitUpdatedTitle",
             "updating",
             t,
-            `/habit_completion` // Singular for toast
+            `/habit_completions` 
           );
         }
         setError((err as Error).message);
@@ -4101,5 +4130,3 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>
   );
 };
-
-    
