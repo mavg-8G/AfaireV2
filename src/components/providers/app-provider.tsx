@@ -380,10 +380,8 @@ const backendToFrontendActivity = (
     };
   }
   
-  // Distinguish between full detail (BackendActivity) and list item (BackendActivityListItem)
-  // BackendActivity has 'todos' and 'occurrences' properties, BackendActivityListItem does not.
   const isFullDetail = 'todos' in backendActivityInput && 'occurrences' in backendActivityInput;
-  const backendActivity = backendActivityInput as BackendActivity; // Cast for easier access, knowing checks will handle missing fields
+  const backendActivity = backendActivityInput as BackendActivity; 
 
   const startDateFromBackend = backendActivity.start_date;
   let createdAtTimestamp: number;
@@ -488,7 +486,7 @@ const backendToFrontendActivity = (
       backendActivity.responsibles as BackendUser[]
     ).map((r) => r.id);
   } else if (
-    "responsible_ids" in backendActivityInput && // Check on original input for list item
+    "responsible_ids" in backendActivityInput && 
     Array.isArray((backendActivityInput as BackendActivityListItem).responsible_ids)
   ) {
     responsiblePersonIdsProcessed = (backendActivityInput as BackendActivityListItem).responsible_ids;
@@ -499,7 +497,7 @@ const backendToFrontendActivity = (
   if (isFullDetail && backendActivity.category && typeof backendActivity.category.id === "number") {
     categoryIdToUse = backendActivity.category.id;
   } else if (
-    "category_id" in backendActivityInput && // Check on original input
+    "category_id" in backendActivityInput && 
     typeof backendActivityInput.category_id === "number"
   ) {
     categoryIdToUse = backendActivityInput.category_id;
@@ -557,7 +555,7 @@ const backendToFrontendActivity = (
     id: backendActivityInput.id,
     title: backendActivityInput?.title || "Untitled Activity",
     categoryId: categoryIdToUse,
-    todos: todosFromBackend, // Will be empty if not isFullDetail
+    todos: todosFromBackend, 
     createdAt: createdAtTimestamp,
     time: backendActivityInput?.time || "00:00",
     notes: backendActivityInput?.notes ?? undefined,
@@ -565,7 +563,7 @@ const backendToFrontendActivity = (
       recurrenceRule.type === "none" ? { type: "none" } : recurrenceRule,
     completed: finalCompletedStatus,
     completedAt: finalCompletedAt,
-    completedOccurrences: completedOccurrencesMap, // Will be empty if not isFullDetail
+    completedOccurrences: completedOccurrencesMap, 
     responsiblePersonIds: responsiblePersonIdsProcessed,
     appMode: ("mode" in backendActivityInput && backendActivityInput.mode === "both"
       ? currentAppMode
@@ -682,7 +680,7 @@ const backendToFrontendHistory = (
   actionKey: backendHistory.action as HistoryLogActionKey,
   backendAction: backendHistory.action,
   backendUserId: backendHistory.user_id,
-  scope: "account", // Default, can be overridden
+  scope: "account", 
   details: { rawBackendAction: backendHistory.action },
 });
 
@@ -899,8 +897,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       }
       setAccessTokenState(null); 
       setDecodedJwtState(null); 
-      accessTokenRef.current = null; // Explicitly clear ref
-      decodedJwtRef.current = null; // Explicitly clear ref
+      accessTokenRef.current = null; 
+      decodedJwtRef.current = null; 
 
 
       if (typeof window !== "undefined") {
@@ -1025,7 +1023,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
 
         setAccessTokenState(tokenString);
         setDecodedJwtState(newDecodedJwt);
-        // Refs are updated by useEffects listening to these states
+        
         console.log(
           "[AppProvider decodeAndSetAccessToken] Access token set in state."
         );
@@ -1053,7 +1051,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   );
 
 const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> => {
-  const currentTokenAtCallTime = accessTokenRef.current; // Read from ref
+  const currentTokenAtCallTime = accessTokenRef.current; 
 
   if (!currentTokenAtCallTime && !isRefreshingTokenRef.current) {
     console.log("[AppProvider refreshTokenLogicInternal] No access token in ref and not refreshing. Attempting initial refresh.");
@@ -1063,7 +1061,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       const interval = setInterval(() => {
         if (!isRefreshingTokenRef.current) {
           clearInterval(interval);
-          resolve(accessTokenRef.current); // Resolve with the latest from ref
+          resolve(accessTokenRef.current); 
         }
       }, 100);
     });
@@ -1073,7 +1071,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       const interval = setInterval(() => {
         if (!isRefreshingTokenRef.current) {
           clearInterval(interval);
-          resolve(accessTokenRef.current); // Resolve with the latest from ref
+          resolve(accessTokenRef.current); 
         }
       }, 100);
     });
@@ -1103,7 +1101,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         t,
         `${API_BASE_URL}/refresh-token`
       );
-      if(accessTokenRef.current) logout(true); // Check ref before logout
+      if(accessTokenRef.current) logout(true); 
       isRefreshingTokenRef.current = false;
       return null;
     }
@@ -1116,7 +1114,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         `[AppProvider refreshTokenLogicInternal] Refresh token API call failed: HTTP ${response.status}`,
         errorData
       );
-      if(accessTokenRef.current) logout(true); // Check ref before logout
+      if(accessTokenRef.current) logout(true); 
       isRefreshingTokenRef.current = false;
       throw new Error(
         formatBackendError(
@@ -1130,9 +1128,9 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     if (newAuthData.access_token) {
       const decodedNewToken = await decodeAndSetAccessToken(
         newAuthData.access_token
-      ); // This updates state and subsequently the refs
+      ); 
       if (!decodedNewToken) {
-        if(accessTokenRef.current) logout(true); // Check ref
+        if(accessTokenRef.current) logout(true); 
         isRefreshingTokenRef.current = false;
         return null;
       }
@@ -1141,7 +1139,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       return newAuthData.access_token; 
     } else {
       console.error("[AppProvider refreshTokenLogicInternal] New access token not found in refresh response.");
-      if(accessTokenRef.current) logout(true); // Check ref
+      if(accessTokenRef.current) logout(true); 
       isRefreshingTokenRef.current = false;
       throw new Error("New access token not found in refresh response.");
     }
@@ -1161,7 +1159,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           t,
           `${API_BASE_URL}/refresh-token`
         );
-        if(accessTokenRef.current) logout(true); // Check ref
+        if(accessTokenRef.current) logout(true); 
     }
     isRefreshingTokenRef.current = false;
     return null;
@@ -1173,9 +1171,9 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       let currentTokenInScope: string | null = accessTokenRef.current; 
       let currentDecodedInScope: DecodedToken | null = decodedJwtRef.current; 
 
-      const fullUrl = urlPath.startsWith("/api/") // This logic is problematic if API_BASE_URL already contains /api
-        ? `${API_BASE_URL}${urlPath}` // e.g. https://host/api/api/foo
-        : `${API_BASE_URL}${urlPath.startsWith("/") ? "" : "/"}${urlPath}`; // e.g. https://host/api/foo if urlPath is /foo
+      const fullUrl = urlPath.startsWith("/api/") 
+        ? `${API_BASE_URL}${urlPath}` 
+        : `${API_BASE_URL}${urlPath.startsWith("/") ? "" : "/"}${urlPath}`; 
 
       const tokenIsExpired =
         currentTokenInScope &&
@@ -1196,8 +1194,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         );
         const newAccessTokenString = await refreshTokenLogicInternal();
         if (newAccessTokenString) {
-          currentTokenInScope = newAccessTokenString; // Update local scope from new token string
-          currentDecodedInScope = decodedJwtRef.current; // Update local scope from ref after decodeAndSetAccessToken
+          currentTokenInScope = newAccessTokenString; 
+          currentDecodedInScope = decodedJwtRef.current; 
           console.log(
             `[AppProvider fetchWithAuth] Token refreshed successfully for ${fullUrl}. Proceeding with request.`
           );
@@ -1466,7 +1464,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           fetchWithAuth(`/history`),
           fetchWithAuth(`/activity-occurrences`),
           fetchWithAuth(`/habits`),
-          fetchWithAuth(`/habit_completions`),
+          fetchWithAuth(`/habit_completion`), // Singular for GET list
         ]);
 
         if (!actResponse.ok)
@@ -1608,10 +1606,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     };
 
     loadClientSideDataAndFetchInitial();
-  // IMPORTANT: Explicitly list dependencies that should trigger re-fetch or re-init.
-  // Using [] means this runs only once on mount. decodeAndSetAccessToken, refreshTokenLogicInternal, logout are stable due to useCallback.
-  // AppModeState is used inside, but changing it shouldn't re-trigger this entire sequence; data filtering happens elsewhere.
-  // Toast and T are stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2065,7 +2059,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             fetchWithAuth(`/history`),
             fetchWithAuth(`/activity-occurrences`),
             fetchWithAuth(`/habits`),
-            fetchWithAuth(`/habit_completions`),
+            fetchWithAuth(`/habit_completion`), // Singular for GET list
           ]);
 
           if (!actResponse.ok)
@@ -2123,7 +2117,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             }
             try {
               let feAct = backendToFrontendActivity(beListItem, appModeState);
-              // List items are summaries, isSummary will be true.
+              
               if (feAct.appMode === "personal") newPersonal.push(feAct);
               else newWork.push(feAct);
             } catch (conversionError) {
@@ -2777,10 +2771,10 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     ) => {
       setError(null);
       const frontendActivityShell: Activity = {
-        id: 0, // Placeholder
+        id: 0, 
         title: activityData.title,
         categoryId: activityData.categoryId,
-        todos: (activityData.todos || []).map((t, i) => ({ // Placeholder IDs
+        todos: (activityData.todos || []).map((t, i) => ({ 
           id: Date.now() + i, 
           text: t.text,
           completed: !!t.completed,
@@ -2792,7 +2786,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         responsiblePersonIds: activityData.responsiblePersonIds,
         appMode: activityData.appMode,
         completedOccurrences: {},
-        isSummary: false, // New activities created on frontend are considered "full"
+        isSummary: false, 
       };
 
       const payload = frontendToBackendActivityPayload(
@@ -2825,7 +2819,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           newBackendActivity,
           appModeState 
         );
-        // newFrontendActivity.isSummary will be false because it's from BackendActivity
+        
 
         if (newFrontendActivity.appMode === "personal") {
           setPersonalActivities((prev) => [...prev, newFrontendActivity]);
@@ -2937,7 +2931,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           );
         }
 
-        // Fetch full details again to ensure consistency, backend might have side effects
+        
         const detailedResponse = await fetchWithAuth(`/activities/${activityId}`);
         if (!detailedResponse.ok) {
              throw new Error(`Failed to fetch full details after update for activity ${activityId}`);
@@ -2948,17 +2942,17 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           updatedBackendActivity,
           appModeState 
         );
-        // processedActivityFromBackend.isSummary will be false
+        
 
 
         const finalFrontendActivity = {
-          ...activityToUpdate, // Start with existing client-side state
-          ...processedActivityFromBackend, // Overlay with fresh full data from backend
-          // Ensure todos are from the detailed fetch, not potentially stale client state
+          ...activityToUpdate, 
+          ...processedActivityFromBackend, 
+          
           todos: processedActivityFromBackend.todos,
-          // Ensure completedOccurrences are from the detailed fetch
+          
           completedOccurrences: processedActivityFromBackend.completedOccurrences,
-          isSummary: false, // Mark as fully detailed
+          isSummary: false, 
         };
 
 
@@ -3194,7 +3188,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             const updatedActivity = {
               ...list[activityIndex],
               todos: [...list[activityIndex].todos, newFrontendTodo],
-               isSummary: false, // Adding a todo implies it's now more detailed
+               isSummary: false, 
             };
             setter((prev) =>
               prev.map((act) => (act.id === activityId ? updatedActivity : act))
@@ -3280,7 +3274,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             const updatedActivity = {
               ...list[activityIndex],
               todos: updatedTodos,
-              isSummary: false, // Updating a todo implies it's now more detailed
+              isSummary: false, 
             };
             setter((prev) =>
               prev.map((act) => (act.id === activityId ? updatedActivity : act))
@@ -3351,7 +3345,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             const updatedActivity = {
               ...list[activityIndex],
               todos: updatedTodos,
-              isSummary: false, // Modifying todos implies it's now more detailed
+              isSummary: false, 
             };
             setter((prev) =>
               prev.map((act) => (act.id === activityId ? updatedActivity : act))
@@ -3431,7 +3425,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
                   ...act.completedOccurrences,
                   [occurrenceDateKey]: completedState,
                 },
-                 isSummary: false, // Interaction implies we want it treated as detailed
+                 isSummary: false, 
               }
             : act
         )
@@ -3580,7 +3574,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     async (activityId: number): Promise<Activity | null> => {
       try {
         const activityResponse = await fetchWithAuth( 
-          `/activities/${activityId}` // This should return BackendActivity (full detail)
+          `/activities/${activityId}` 
         );
         if (!activityResponse.ok) {
           const errorData = await activityResponse.json().catch(() => ({
@@ -3593,10 +3587,10 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             )
           );
         }
-        // Assuming the endpoint /activities/{id} returns the FULL BackendActivity structure
+        
         const backendFullActivity: BackendActivity = await activityResponse.json();
         
-        // backendToFrontendActivity will set isSummary = false if 'todos' and 'occurrences' are present
+        
         let frontendActivityWithDetails = backendToFrontendActivity(
           backendFullActivity,
           appModeState
@@ -3613,11 +3607,11 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           if (existingActivity) {
             return prevActivities.map((act) =>
               act.id === activityId
-                ? { ...existingActivity, ...frontendActivityWithDetails, isSummary: false } // Ensure isSummary is false
+                ? { ...existingActivity, ...frontendActivityWithDetails, isSummary: false } 
                 : act
             );
           }
-          // If somehow not in list, add it (should be rare for an update details call)
+          
           return [...prevActivities, { ...frontendActivityWithDetails, isSummary: false }];
         });
         return { ...frontendActivityWithDetails, isSummary: false };
@@ -3843,7 +3837,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             is_completed: newCompletedState,
           };
           const response = await fetchWithAuth( 
-            `/habit_completions/${currentStatus.completionId}`,
+            `/habit_completion/${currentStatus.completionId}`, // Singular for PUT
             {
               method: "PUT",
               body: JSON.stringify(payload),
@@ -3868,7 +3862,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             completion_date: parseISO(dateKey).toISOString(),
             is_completed: newCompletedState,
           };
-          const response = await fetchWithAuth(`/habit_completions`, { 
+          const response = await fetchWithAuth(`/habit_completion`, { // Singular for POST
             method: "POST",
             body: JSON.stringify(payload),
           });
@@ -3921,7 +3915,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             "toastHabitUpdatedTitle",
             "updating",
             t,
-            `/habit_completions`
+            `/habit_completion` // Singular for toast
           );
         }
         setError((err as Error).message);
@@ -3983,7 +3977,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     const handleVisibilityChange = () => {
       if (
         document.visibilityState === "visible" &&
-        accessTokenRef.current &&  // Check ref
+        accessTokenRef.current &&  
         appPinState
       )
         setIsAppLocked(true);
@@ -3991,14 +3985,14 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () =>
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [appPinState, isLoadingState]); // Removed isAuthenticated from deps, using ref
+  }, [appPinState, isLoadingState]); 
 
   const combinedIsLoading =
     isLoadingState ||
     isActivitiesLoading ||
     isCategoriesLoading ||
     isAssigneesLoading ||
-    (accessTokenRef.current && (isHistoryLoading || isHabitsLoading)); // Check ref
+    (accessTokenRef.current && (isHistoryLoading || isHabitsLoading)); 
 
   const contextValue = useMemo(
     () => ({
@@ -4025,7 +4019,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       getAssigneeById,
       isLoading: combinedIsLoading,
       error,
-      isAuthenticated: !!accessTokenRef.current, // Derive from ref
+      isAuthenticated: !!accessTokenRef.current, 
       login,
       logout,
       changePassword,
@@ -4075,7 +4069,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       getAssigneeById, 
       combinedIsLoading, 
       error, 
-      // isAuthenticated derived from ref, not direct dep here
+      
       login, 
       logout, 
       changePassword, 
@@ -4108,3 +4102,4 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
   );
 };
 
+    
