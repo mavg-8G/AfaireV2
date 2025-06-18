@@ -55,12 +55,13 @@ export interface RecurrenceRule {
 }
 
 // --- ACTIVITY OCCURRENCE ---
-export interface BackendActivityOccurrence {
+// This is the response from GET /activity-occurrences and GET /activities/{id}/occurrences
+export interface BackendActivityOccurrenceResponse {
   id: number;
   activity_id: number;
   date: string; // ISO datetime string from backend
   complete: boolean;
-  activity_title?: string;
+  activity_title?: string; // Provided by backend
 }
 
 export interface BackendActivityOccurrenceCreate {
@@ -76,93 +77,81 @@ export interface BackendActivityOccurrenceUpdate {
 
 
 // --- ACTIVITY ---
+// This is the primary frontend representation of an activity
 export interface Activity {
   id: number;
   title: string;
   categoryId: number;
-  todos: Todo[];
-  createdAt: number;
+  todos: Todo[]; // Populated by a separate call to /activities/{id}/todos
+  createdAt: number; // Derived from backend start_date
   time?: string;
-  completed?: boolean;
-  completedAt?: number | null;
+  completed?: boolean; // For non-recurring, based on its single occurrence
+  completedAt?: number | null; // For non-recurring
   notes?: string;
   recurrence?: RecurrenceRule | null;
-  completedOccurrences: Record<string, boolean>;
-  isRecurringInstance?: boolean;
-  originalInstanceDate?: number;
-  masterActivityId?: number;
-  responsiblePersonIds?: number[];
+  completedOccurrences: Record<string, boolean>; // Populated by /activities/{id}/occurrences or global /activity-occurrences
+  isRecurringInstance?: boolean; // Client-side flag for calendar instances
+  originalInstanceDate?: number; // Client-side flag for calendar instances
+  masterActivityId?: number; // Client-side flag for calendar instances
+  responsiblePersonIds?: number[]; // From backend responsible_ids
   appMode: AppMode;
-  created_by_user_id?: number;
+  created_by_user_id?: number; // From backend
   isSummary?: boolean; // Flag to indicate if this is a summary or full detail
 }
 
-export interface BackendActivityListItem {
+// This is the response from GET /activities (list) and GET /activities/{id} (single)
+export interface BackendActivityResponse {
   id: number;
   title: string;
-  start_date: string;
+  start_date: string; // ISO datetime string
   time: string;
   category_id: number;
   repeat_mode: BackendRepeatMode;
-  end_date?: string | null;
-  days_of_week?: string | null;
+  end_date?: string | null; // ISO datetime string
+  days_of_week?: string | null; // Comma-separated string of day names
   day_of_month?: number | null;
   notes?: string | null;
   mode: BackendCategoryMode;
   responsible_ids: number[];
   created_by_user_id: number;
-  // Does NOT contain todos, occurrences, full category object, or full responsibles objects
+  // This response type DOES NOT contain todos or full occurrence details directly.
 }
 
-export interface BackendActivity { // This is for the detailed GET /activities/{id}
-  id: number;
-  title: string;
-  start_date: string;
-  time: string;
-  category_id: number;
-  repeat_mode: BackendRepeatMode;
-  end_date?: string | null;
-  days_of_week?: string | null;
-  day_of_month?: number | null;
-  notes?: string | null;
-  mode: BackendCategoryMode;
-  category?: BackendCategory; // Full category object
-  responsibles?: BackendUser[]; // Full user objects
-  todos?: BackendTodo[]; // Full todo objects
-  occurrences?: BackendActivityOccurrence[]; // List of occurrences
-  responsible_ids?: number[]; 
-  created_by_user_id: number;
-}
+// This type represents the response from GET /activities/{id}/todos
+export type BackendActivityTodosResponse = BackendTodo[];
+
+// This type represents the response from GET /activities/{id}/occurrences
+export type BackendActivityOccurrencesListResponse = BackendActivityOccurrenceResponse[];
 
 
 export interface BackendActivityCreatePayload {
   title: string;
-  start_date: string;
+  start_date: string; // ISO datetime string
   time: string;
   category_id: number;
   repeat_mode?: BackendRepeatMode;
-  end_date?: string | null;
-  days_of_week?: string[] | null;
+  end_date?: string | null; // ISO datetime string
+  days_of_week?: string[] | null; // List of day name strings
   day_of_month?: number | null;
   notes?: string | null;
   mode: BackendCategoryMode;
   responsible_ids?: number[];
   todos?: BackendTodoCreate[];
-  // created_by_user_id is set by backend
 }
 
 export interface BackendActivityUpdatePayload {
   title?: string;
-  start_date?: string;
+  start_date?: string; // ISO datetime string
   time?: string;
   category_id?: number;
   repeat_mode?: BackendRepeatMode;
-  end_date?: string | null;
-  days_of_week?: string[] | null;
+  end_date?: string | null; // ISO datetime string
+  days_of_week?: string[] | null; // List of day name strings
   day_of_month?: number | null;
   notes?: string | null;
   mode?: BackendCategoryMode;
   responsible_ids?: number[];
+  // Note: Todos are not updated via this payload as per backend spec
 }
 
 // --- CATEGORY ---
@@ -278,7 +267,7 @@ export interface BackendHistoryCreatePayload {
 
 export interface BackendHistory {
   id: number;
-  timestamp: string;
+  timestamp: string; // ISO datetime string
   action: string;
   user_id: number;
   user?: BackendUser;
@@ -289,43 +278,43 @@ export interface HabitSlot {
   id: number; // Matches backend ID
   name: string;
   default_time?: string; // HH:MM format
-  order?: number; 
+  order?: number;
 }
 
 export interface Habit {
   id: number; // Matches backend ID
   user_id?: number;
   name: string;
-  iconName: string; 
+  iconName: string;
   icon: LucideIcon;
   slots: HabitSlot[];
 }
 
-export interface HabitSlotCreateData { // Used by frontend to send to backend for creation/update within a habit
-  id?: number; // Optional ID for existing slots, used in updates
+export interface HabitSlotCreateData {
+  id?: number;
   name: string;
   default_time?: string;
-  // order is set by backend implicitly by array order during creation, or explicitly during update
+  // order is implicit from array order on backend for create
 }
-export interface HabitCreateData { // Used by frontend to send to backend for new habit
+export interface HabitCreateData {
   name: string;
-  icon_name: string; 
-  slots: Omit<HabitSlotCreateData, 'id'>[]; // No IDs for brand new slots in a new habit
+  icon_name: string;
+  slots: Omit<HabitSlotCreateData, 'id'>[];
 }
 
-export interface HabitUpdateData { // Used by frontend to send to backend for habit update
+export interface HabitUpdateData {
   name?: string;
   icon_name?: string;
-  slots?: HabitSlotCreateData[]; // Can contain existing slots (with ID) and new slots (without ID)
+  slots?: HabitSlotCreateData[];
 }
 
-export interface BackendHabitSlot { 
+export interface BackendHabitSlot {
   id: number;
   name: string;
   default_time?: string;
   order: number;
 }
-export interface BackendHabit { 
+export interface BackendHabit {
   id: number;
   user_id: number;
   name: string;
@@ -339,7 +328,6 @@ export interface HabitSlotCompletionStatus {
   completionId?: number; // Backend ID of the HabitCompletion record
 }
 
-// Structure: { [habitId]: { [dateKey_YYYY-MM-DD]: { [slotId]: { completed: boolean, completionId: number } } } }
 export type HabitCompletions = Record<number, Record<string, Record<number, HabitSlotCompletionStatus>>>;
 
 
@@ -423,3 +411,5 @@ export interface AppContextType {
   toggleHabitSlotCompletion: (habitId: number, slotId: number, dateKey: string, currentStatus: HabitSlotCompletionStatus | undefined) => Promise<void>;
   getHabitById: (habitId: number) => Habit | undefined;
 }
+
+    
