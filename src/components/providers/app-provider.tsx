@@ -921,7 +921,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
               );
             } else {
               console.warn(
-                `[AppProvider logout] Backend logout call to ${API_BASE_URL}/logout failed or was not successful. Status: ${response.status} ${response.statusText}. This might be due to backend policy or an issue with the session/refresh token.`
+                `[AppProvider logout] Backend logout call to ${API_BASE_URL}/logout failed or was not successful. Status: ${response.status} ${response.statusText}. This might be due to backend policy or an issue with the session/refresh token. Error data (if JSON):`,
+                response.headers.get("content-type")?.includes("application/json") ? response.json().catch(() => ({})) : "Not JSON"
               );
             }
           })
@@ -962,6 +963,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         );
         setAccessTokenState(null);
         setDecodedJwtState(null);
+        accessTokenRef.current = null;
+        decodedJwtRef.current = null;
         return null;
       }
       try {
@@ -1022,6 +1025,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
 
         setAccessTokenState(tokenString);
         setDecodedJwtState(newDecodedJwt);
+        // Refs are updated by useEffects listening to these states
         console.log(
           "[AppProvider decodeAndSetAccessToken] Access token set in state."
         );
@@ -1040,6 +1044,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         );
         setAccessTokenState(null);
         setDecodedJwtState(null);
+        accessTokenRef.current = null;
+        decodedJwtRef.current = null;
         return null;
       }
     },
@@ -1047,31 +1053,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   );
 
 const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> => {
-  const currentTokenAtCallTime = accessTokenRef.current;
+  const currentTokenAtCallTime = accessTokenRef.current; // Read from ref
 
-  if (!currentTokenAtCallTime && !isRefreshingTokenRef.current) { 
-    // Only proceed if no token AND not already refreshing.
-    // This handles the initial load case where we try to refresh if no token exists.
+  if (!currentTokenAtCallTime && !isRefreshingTokenRef.current) {
     console.log("[AppProvider refreshTokenLogicInternal] No access token in ref and not refreshing. Attempting initial refresh.");
   } else if (!currentTokenAtCallTime && isRefreshingTokenRef.current) {
-    // Already refreshing, likely due to initial load, wait for it.
     console.log("[AppProvider refreshTokenLogicInternal] No access token in ref, but already refreshing. Waiting.");
     return new Promise((resolve) => {
       const interval = setInterval(() => {
         if (!isRefreshingTokenRef.current) {
           clearInterval(interval);
-          resolve(accessTokenRef.current); 
+          resolve(accessTokenRef.current); // Resolve with the latest from ref
         }
       }, 100);
     });
   } else if (isRefreshingTokenRef.current) {
-    // A token exists, but another refresh is in progress. Wait for it.
-    console.log("[AppProvider refreshTokenLogicInternal] Token exists, but another refresh is in progress. Waiting.");
+    console.log("[AppProvider refreshTokenLogicInternal] Token exists in ref, but another refresh is in progress. Waiting.");
      return new Promise((resolve) => {
       const interval = setInterval(() => {
         if (!isRefreshingTokenRef.current) {
           clearInterval(interval);
-          resolve(accessTokenRef.current); 
+          resolve(accessTokenRef.current); // Resolve with the latest from ref
         }
       }, 100);
     });
@@ -1101,7 +1103,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         t,
         `${API_BASE_URL}/refresh-token`
       );
-      if(accessTokenRef.current) logout(true); 
+      if(accessTokenRef.current) logout(true); // Check ref before logout
       isRefreshingTokenRef.current = false;
       return null;
     }
@@ -1114,7 +1116,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         `[AppProvider refreshTokenLogicInternal] Refresh token API call failed: HTTP ${response.status}`,
         errorData
       );
-      if(accessTokenRef.current) logout(true);
+      if(accessTokenRef.current) logout(true); // Check ref before logout
       isRefreshingTokenRef.current = false;
       throw new Error(
         formatBackendError(
@@ -1128,9 +1130,9 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     if (newAuthData.access_token) {
       const decodedNewToken = await decodeAndSetAccessToken(
         newAuthData.access_token
-      );
+      ); // This updates state and subsequently the refs
       if (!decodedNewToken) {
-        if(accessTokenRef.current) logout(true);
+        if(accessTokenRef.current) logout(true); // Check ref
         isRefreshingTokenRef.current = false;
         return null;
       }
@@ -1139,12 +1141,12 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       return newAuthData.access_token; 
     } else {
       console.error("[AppProvider refreshTokenLogicInternal] New access token not found in refresh response.");
-      if(accessTokenRef.current) logout(true);
+      if(accessTokenRef.current) logout(true); // Check ref
       isRefreshingTokenRef.current = false;
       throw new Error("New access token not found in refresh response.");
     }
   } catch (err) {
-    if (!accessTokenRef.current && !isRefreshingTokenRef.current) { // Already logged out and refresh finished (or never started for this error)
+    if (!accessTokenRef.current && !isRefreshingTokenRef.current) {
         console.warn("[AppProvider refreshTokenLogicInternal catch] Logout already initiated or not applicable, accessTokenRef is null.");
     } else {
         console.error(
@@ -1159,7 +1161,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           t,
           `${API_BASE_URL}/refresh-token`
         );
-        if(accessTokenRef.current) logout(true); 
+        if(accessTokenRef.current) logout(true); // Check ref
     }
     isRefreshingTokenRef.current = false;
     return null;
@@ -1171,9 +1173,9 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       let currentTokenInScope: string | null = accessTokenRef.current; 
       let currentDecodedInScope: DecodedToken | null = decodedJwtRef.current; 
 
-      const fullUrl = urlPath.startsWith("/api/")
-        ? `${API_BASE_URL}${urlPath}`
-        : `${API_BASE_URL}${urlPath.startsWith("/") ? "" : "/"}${urlPath}`;
+      const fullUrl = urlPath.startsWith("/api/") // This logic is problematic if API_BASE_URL already contains /api
+        ? `${API_BASE_URL}${urlPath}` // e.g. https://host/api/api/foo
+        : `${API_BASE_URL}${urlPath.startsWith("/") ? "" : "/"}${urlPath}`; // e.g. https://host/api/foo if urlPath is /foo
 
       const tokenIsExpired =
         currentTokenInScope &&
@@ -1185,8 +1187,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
 
       if (
         (needsRefreshDueToExpiry || needsRefreshDueToMissing) &&
-        !urlPath.endsWith("/token") && // Do not refresh for the login endpoint itself
-        !urlPath.endsWith("/refresh-token") && // Do not refresh for the refresh endpoint itself
+        !urlPath.endsWith("/token") && 
+        !urlPath.endsWith("/refresh-token") && 
         !isRefreshingTokenRef.current 
       ) {
         console.log(
@@ -1194,8 +1196,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         );
         const newAccessTokenString = await refreshTokenLogicInternal();
         if (newAccessTokenString) {
-          currentTokenInScope = newAccessTokenString; 
-          currentDecodedInScope = decodedJwtRef.current; // Update from ref after decodeAndSetAccessToken
+          currentTokenInScope = newAccessTokenString; // Update local scope from new token string
+          currentDecodedInScope = decodedJwtRef.current; // Update local scope from ref after decodeAndSetAccessToken
           console.log(
             `[AppProvider fetchWithAuth] Token refreshed successfully for ${fullUrl}. Proceeding with request.`
           );
@@ -1203,14 +1205,13 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           console.error(
             `[AppProvider fetchWithAuth] Token refresh failed for ${fullUrl}. Logout should have been initiated by refresh logic.`
           );
-          // Check if logout was already called (e.g. if accessTokenRef.current is now null)
-          if (accessTokenRef.current) { // Only throw if not already logged out
+          if (accessTokenRef.current) {
+             console.warn("[AppProvider fetchWithAuth] Throwing error: Session update failed (refresh failed).");
              throw new Error(
               "Session update failed. Please try logging in again. (Refresh failed before request)"
             );
-          } else { // Already logged out, perhaps re-throw a different error or let it fail if it tries to make a call without token
-            console.warn(`[AppProvider fetchWithAuth] Already logged out after failed refresh for ${fullUrl}.`);
-            // Depending on desired behavior, could throw here to stop the fetch or let it proceed (likely to fail if it needs auth)
+          } else {
+            console.warn(`[AppProvider fetchWithAuth] Already logged out after failed refresh for ${fullUrl}. Throwing error: User is logged out.`);
             throw new Error("User is logged out. Cannot make authenticated request.");
           }
         }
@@ -1299,12 +1300,13 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           console.error(
             `[AppProvider fetchWithAuth] Token refresh failed after 401 for ${fullUrl}. Logout should have been initiated.`
           );
-           if (accessTokenRef.current) { // Only throw if not already logged out
+           if (accessTokenRef.current) { 
+             console.warn("[AppProvider fetchWithAuth] Throwing error: Session update failed (refresh failed post-401).");
              throw new Error(
               `Session update failed. Please try logging in again. (Details: Refresh failed after 401 for ${fullUrl})`
             );
           } else {
-            console.warn(`[AppProvider fetchWithAuth] Already logged out after failed refresh (post-401) for ${fullUrl}.`);
+            console.warn(`[AppProvider fetchWithAuth] Already logged out after failed refresh (post-401) for ${fullUrl}. Throwing error: User is logged out.`);
             throw new Error("User is logged out. Cannot make authenticated request after 401.");
           }
         }
@@ -1417,11 +1419,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         console.log(
           "[AppProvider useEffect init] No effective access token after initial load/refresh. Logging out and skipping data fetches."
         );
-        // Do not call logout here if it was already called by refreshTokenLogicInternal
-        // Check if accessTokenRef.current is truly null before trying to logout
-        // logout(true) might have already been called by refreshTokenLogicInternal if it failed
-        // If refreshTokenLogicInternal returned null but didn't logout (e.g. no initial token), then we might not need to logout explicitly here
-        // as there's no session to clear.
         setIsLoadingState(false);
         setIsActivitiesLoading(false);
         setIsCategoriesLoading(false);
@@ -1526,15 +1523,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             return;
           }
           try {
-            // When loading the list, these are summaries, so todos and occurrences aren't part of beListItem
             let feAct = backendToFrontendActivity(beListItem, appModeState); 
             
-            // For list items, completedOccurrences would be initially empty.
-            // We need to cross-reference with allBackendOccurrences if we want to populate this for summary items.
-            // This might be too much for initial load; perhaps fetchAndSetSpecificActivityDetails should handle it.
-            // For now, let's assume list items don't get their completedOccurrences populated from the /activity-occurrences endpoint directly here.
-            // The isSummary flag set by backendToFrontendActivity will indicate it's from a list.
-
             if (feAct.appMode === "personal") newPersonal.push(feAct);
             else newWork.push(feAct);
           } catch (conversionError) {
@@ -1618,7 +1608,12 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     };
 
     loadClientSideDataAndFetchInitial();
-  }, [fetchWithAuth, refreshTokenLogicInternal, logout, decodeAndSetAccessToken, appModeState, toast, t]);
+  // IMPORTANT: Explicitly list dependencies that should trigger re-fetch or re-init.
+  // Using [] means this runs only once on mount. decodeAndSetAccessToken, refreshTokenLogicInternal, logout are stable due to useCallback.
+  // AppModeState is used inside, but changing it shouldn't re-trigger this entire sequence; data filtering happens elsewhere.
+  // Toast and T are stable.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
 
   useEffect(() => {
@@ -1968,14 +1963,14 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
   useEffect(() => {
     if (!logoutChannel) return;
     const handleLogoutMessage = (event: MessageEvent) => {
-      if (event.data === "logout_event_v2" && isAuthenticated) logout(); 
+      if (event.data === "logout_event_v2" && accessTokenRef.current) logout(); 
     };
     logoutChannel.addEventListener("message", handleLogoutMessage);
     return () => {
       if (logoutChannel)
         logoutChannel.removeEventListener("message", handleLogoutMessage);
     };
-  }, [isAuthenticated, logout]); 
+  }, [logout]); 
 
   const setAppMode = useCallback(
     (mode: AppMode) => {
@@ -3653,7 +3648,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     async (habitData: HabitCreateData) => {
       setError(null);
       try {
-        const response = await fetchWithAuth(`/api/habits`, { 
+        const response = await fetchWithAuth(`/habits`, { 
           method: "POST",
           body: JSON.stringify(habitData),
         });
@@ -3696,7 +3691,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             "toastHabitAddedTitle",
             "adding",
             t,
-            `/api/habits`
+            `/habits`
           );
         }
         setError((err as Error).message);
@@ -3711,7 +3706,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       setError(null);
       const oldHabit = habits.find((h) => h.id === habitId);
       try {
-        const response = await fetchWithAuth(`/api/habits/${habitId}`, { 
+        const response = await fetchWithAuth(`/habits/${habitId}`, { 
           method: "PUT",
           body: JSON.stringify(habitData),
         });
@@ -3757,7 +3752,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             "toastHabitUpdatedTitle",
             "updating",
             t,
-            `/api/habits/${habitId}`
+            `/habits/${habitId}`
           );
         }
         setError((err as Error).message);
@@ -3772,7 +3767,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       setError(null);
       const habitToDelete = habits.find((h) => h.id === habitId);
       try {
-        const response = await fetchWithAuth(`/api/habits/${habitId}`, { 
+        const response = await fetchWithAuth(`/habits/${habitId}`, { 
           method: "DELETE",
         });
         if (!response.ok && response.status !== 204) { 
@@ -3819,7 +3814,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             "toastHabitDeletedTitle",
             "deleting",
             t,
-            `/api/habits/${habitId}`
+            `/habits/${habitId}`
           );
         }
         setError((err as Error).message);
@@ -3848,7 +3843,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             is_completed: newCompletedState,
           };
           const response = await fetchWithAuth( 
-            `/api/habit_completions/${currentStatus.completionId}`,
+            `/habit_completions/${currentStatus.completionId}`,
             {
               method: "PUT",
               body: JSON.stringify(payload),
@@ -3873,7 +3868,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             completion_date: parseISO(dateKey).toISOString(),
             is_completed: newCompletedState,
           };
-          const response = await fetchWithAuth(`/api/habit_completions`, { 
+          const response = await fetchWithAuth(`/habit_completions`, { 
             method: "POST",
             body: JSON.stringify(payload),
           });
@@ -3926,7 +3921,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             "toastHabitUpdatedTitle",
             "updating",
             t,
-            `/api/habit_completions`
+            `/habit_completions`
           );
         }
         setError((err as Error).message);
@@ -3988,7 +3983,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     const handleVisibilityChange = () => {
       if (
         document.visibilityState === "visible" &&
-        isAuthenticated && 
+        accessTokenRef.current &&  // Check ref
         appPinState
       )
         setIsAppLocked(true);
@@ -3996,14 +3991,14 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () =>
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [isAuthenticated, appPinState, isLoadingState]); 
+  }, [appPinState, isLoadingState]); // Removed isAuthenticated from deps, using ref
 
   const combinedIsLoading =
     isLoadingState ||
     isActivitiesLoading ||
     isCategoriesLoading ||
     isAssigneesLoading ||
-    (isAuthenticated && (isHistoryLoading || isHabitsLoading)); 
+    (accessTokenRef.current && (isHistoryLoading || isHabitsLoading)); // Check ref
 
   const contextValue = useMemo(
     () => ({
@@ -4030,7 +4025,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       getAssigneeById,
       isLoading: combinedIsLoading,
       error,
-      isAuthenticated, 
+      isAuthenticated: !!accessTokenRef.current, // Derive from ref
       login,
       logout,
       changePassword,
@@ -4080,7 +4075,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       getAssigneeById, 
       combinedIsLoading, 
       error, 
-      isAuthenticated, 
+      // isAuthenticated derived from ref, not direct dep here
       login, 
       logout, 
       changePassword, 
