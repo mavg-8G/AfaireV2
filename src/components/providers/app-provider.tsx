@@ -823,9 +823,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   const [decodedJwtState, setDecodedJwtState] = useState<DecodedToken | null>(null);
   const isRefreshingTokenRef = useRef(false);
 
-  const accessTokenRef = useRef<string | null>(accessTokenState);
-  const decodedJwtRef = useRef<DecodedToken | null>(decodedJwtState);
+  const accessTokenRef = useRef<string | null>(null);
+  const decodedJwtRef = useRef<DecodedToken | null>(null);
 
+  // Effects to sync state to refs are still useful for general reactivity,
+  // but critical paths will update refs directly.
   useEffect(() => {
     accessTokenRef.current = accessTokenState;
   }, [accessTokenState]);
@@ -896,10 +898,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
       if (!isTokenRefreshFailure && addHistoryLogEntryRef.current) {
         addHistoryLogEntryRef.current("historyLogLogout", undefined, "account");
       }
-      setAccessTokenState(null); 
-      setDecodedJwtState(null); 
       accessTokenRef.current = null; 
       decodedJwtRef.current = null; 
+      setAccessTokenState(null); 
+      setDecodedJwtState(null); 
 
 
       if (typeof window !== "undefined") {
@@ -960,10 +962,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         console.log(
           "[AppProvider decodeAndSetAccessToken] Token string is null. Clearing token state."
         );
-        setAccessTokenState(null);
-        setDecodedJwtState(null);
         accessTokenRef.current = null;
         decodedJwtRef.current = null;
+        setAccessTokenState(null);
+        setDecodedJwtState(null);
         return null;
       }
       try {
@@ -1021,12 +1023,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
             );
           }
         }
+        
+        // Directly update refs for immediate availability
+        accessTokenRef.current = tokenString;
+        decodedJwtRef.current = newDecodedJwt;
 
+        // Then update state to trigger re-renders
         setAccessTokenState(tokenString);
         setDecodedJwtState(newDecodedJwt);
         
         console.log(
-          "[AppProvider decodeAndSetAccessToken] Access token set in state."
+          "[AppProvider decodeAndSetAccessToken] Access token set in ref and state."
         );
         return newDecodedJwt;
       } catch (err) {
@@ -1041,10 +1048,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
             20
           )}...`
         );
-        setAccessTokenState(null);
-        setDecodedJwtState(null);
         accessTokenRef.current = null;
         decodedJwtRef.current = null;
+        setAccessTokenState(null);
+        setDecodedJwtState(null);
         return null;
       }
     },
@@ -1204,7 +1211,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           console.error(
             `[AppProvider fetchWithAuth] Token refresh failed for ${fullUrl}. Logout should have been initiated by refresh logic.`
           );
-          if (accessTokenRef.current) {
+          if (accessTokenRef.current) { // Check ref again, as logout might have cleared it
              console.warn("[AppProvider fetchWithAuth] Throwing error: Session update failed (refresh failed).");
              throw new Error(
               "Session update failed. Please try logging in again. (Refresh failed before request)"
@@ -1299,7 +1306,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           console.error(
             `[AppProvider fetchWithAuth] Token refresh failed after 401 for ${fullUrl}. Logout should have been initiated.`
           );
-           if (accessTokenRef.current) { 
+           if (accessTokenRef.current) { // Check ref again
              console.warn("[AppProvider fetchWithAuth] Throwing error: Session update failed (refresh failed post-401).");
              throw new Error(
               `Session update failed. Please try logging in again. (Details: Refresh failed after 401 for ${fullUrl})`
@@ -3709,13 +3716,11 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       setError(null);
       const oldHabit = habits.find((h) => h.id === habitId);
       
-      // Prepare slots payload: include ID for existing, omit for new
       const slotsPayload: HabitSlotCreateData[] = (habitData.slots || []).map(s_form => {
         const slot_payload: HabitSlotCreateData = {
             name: s_form.name,
             default_time: s_form.default_time || undefined,
         };
-        // Only include 'id' if it's a number (existing slot from backend)
         if (typeof s_form.id === 'number') {
             slot_payload.id = s_form.id;
         }
@@ -3866,7 +3871,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             is_completed: newCompletedState,
           };
           const response = await fetchWithAuth( 
-            `/habit_completions/${currentStatus.completionId}`, 
+            `/habit_completion/${currentStatus.completionId}`, 
             {
               method: "PUT",
               body: JSON.stringify(payload),
@@ -3891,14 +3896,14 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             completion_date: parseISO(dateKey).toISOString(),
             is_completed: newCompletedState,
           };
-          const response = await fetchWithAuth(`/habit_completions`, { 
+          const response = await fetchWithAuth(`/habit_completion`, { 
             method: "POST",
             body: JSON.stringify(payload),
           });
           if (!response.ok) {
             const errorData = await response
               .json()
-              .catch(() => ({ detail: response.statusText }));
+              .catch(() => ({ detail: `HTTP ${response.status}` }));
             throw new Error(
               formatBackendError(errorData, `Failed to create new occurrence`)
             );
@@ -3944,7 +3949,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             "toastHabitUpdatedTitle",
             "updating",
             t,
-            `/habit_completions` 
+            `/habit_completion` 
           );
         }
         setError((err as Error).message);
@@ -4130,3 +4135,4 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>
   );
 };
+
