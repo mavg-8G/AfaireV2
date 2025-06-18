@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation'; // Added this import
+import { useRouter } from 'next/navigation';
 import type { BarChartDataItem, BarProps as ChartBarProps } from '@/components/ui/chart';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -45,8 +45,8 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { v4 as uuidv4 } from 'uuid';
 import dynamic from 'next/dynamic';
-import ActivityListItem from '@/components/calendar/activity-list-item'; // Re-use for dashboard list
-import HabitListItem from '@/components/calendar/habit-list-item'; // Re-use for dashboard list
+import ActivityListItem from '@/components/calendar/activity-list-item';
+import HabitListItem from '@/components/calendar/habit-list-item';
 
 
 const BarChart = dynamic(() => import('@/components/ui/chart').then(mod => mod.BarChart), {
@@ -265,7 +265,7 @@ type DashboardDisplayItem = ActivityDashboardItem | HabitDashboardItem;
 export default function DashboardPage() {
   const { getRawActivities, getCategoryById, habits, habitCompletions, toggleHabitSlotCompletion, deleteActivity, toggleOccurrenceCompletion } = useAppStore();
   const { t, locale } = useTranslations();
-  const router = useRouter(); // For ActivityListItem onEdit
+  const router = useRouter();
   const [chartViewMode, setChartViewMode] = useState<ChartViewMode>('weekly');
   const [listViewTimeRange, setListViewTimeRange] = useState<ListViewTimeRange>('last7days');
   const [productivityViewTimeRange, setProductivityViewTimeRange] = useState<ProductivityViewTimeRange>('last7days');
@@ -278,7 +278,7 @@ export default function DashboardPage() {
     setHasMounted(true);
   }, []);
 
-  const chartData = useMemo((): BarChartDataItem[] => {
+  const activityChartData = useMemo((): BarChartDataItem[] => {
     if (!hasMounted) return [];
     const rawMasterActivities = getRawActivities();
     const today = new Date();
@@ -302,17 +302,11 @@ export default function DashboardPage() {
             }
           });
         });
-
-        const habitSlotsThisDay = generateHabitSlotOccurrencesForRange(habits, habitCompletions, dayStart, dayEnd);
-        const totalHabitSlotsThisDay = habitSlotsThisDay.length;
-        const completedHabitSlotsThisDay = habitSlotsThisDay.filter(hs => hs.isCompleted).length;
         
         return {
           name: format(currentDateForChart, 'E', { locale: dateLocale }),
           totalActivities: totalActivitiesThisDay,
           completedActivities: completedActivitiesThisDay,
-          totalHabitSlots: totalHabitSlotsThisDay,
-          completedHabitSlots: completedHabitSlotsThisDay,
         };
       });
     } else { // monthly
@@ -341,24 +335,69 @@ export default function DashboardPage() {
           });
         });
 
+        return {
+          name: `${t('dashboardWeekLabel')}${index + 1}`,
+          totalActivities: totalActivitiesThisWeek,
+          completedActivities: completedActivitiesThisWeek,
+        };
+      });
+    }
+  }, [getRawActivities, chartViewMode, dateLocale, t, hasMounted]);
+
+  const habitChartData = useMemo((): BarChartDataItem[] => {
+    if (!hasMounted) return [];
+    const today = new Date();
+
+    if (chartViewMode === 'weekly') {
+      return Array.from({ length: 7 }).map((_, i) => {
+        const currentDateForChart = subDays(today, 6 - i);
+        const dayStart = startOfDay(currentDateForChart);
+        const dayEnd = endOfDay(currentDateForChart);
+        
+        const habitSlotsThisDay = generateHabitSlotOccurrencesForRange(habits, habitCompletions, dayStart, dayEnd);
+        const totalHabitSlotsThisDay = habitSlotsThisDay.length;
+        const completedHabitSlotsThisDay = habitSlotsThisDay.filter(hs => hs.isCompleted).length;
+        
+        return {
+          name: format(currentDateForChart, 'E', { locale: dateLocale }),
+          totalHabitSlots: totalHabitSlotsThisDay,
+          completedHabitSlots: completedHabitSlotsThisDay,
+        };
+      });
+    } else { // monthly
+      const currentMonth = new Date();
+      const firstDayOfMonth = startOfMonth(currentMonth);
+      const lastDayOfMonth = endOfMonth(currentMonth);
+      const weekStartsOn = dateLocale.options?.weekStartsOn ?? 0;
+      const weeksInMonth = eachWeekOfInterval(
+        { start: firstDayOfMonth, end: lastDayOfMonth },
+        { locale: dateLocale, weekStartsOn: weekStartsOn as 0 | 1 | 2 | 3 | 4 | 5 | 6 }
+      );
+
+      return weeksInMonth.map((weekStartDateInLoop, index) => {
+        const actualWeekStart = startOfWeek(weekStartDateInLoop, { locale: dateLocale, weekStartsOn: weekStartsOn as 0 | 1 | 2 | 3 | 4 | 5 | 6 });
+        const actualWeekEnd = endOfWeek(weekStartDateInLoop, { locale: dateLocale, weekStartsOn: weekStartsOn as 0 | 1 | 2 | 3 | 4 | 5 | 6 });
+        
         const habitSlotsThisWeek = generateHabitSlotOccurrencesForRange(habits, habitCompletions, actualWeekStart, actualWeekEnd);
         const totalHabitSlotsThisWeek = habitSlotsThisWeek.length;
         const completedHabitSlotsThisWeek = habitSlotsThisWeek.filter(hs => hs.isCompleted).length;
 
         return {
           name: `${t('dashboardWeekLabel')}${index + 1}`,
-          totalActivities: totalActivitiesThisWeek,
-          completedActivities: completedActivitiesThisWeek,
           totalHabitSlots: totalHabitSlotsThisWeek,
           completedHabitSlots: completedHabitSlotsThisWeek,
         };
       });
     }
-  }, [getRawActivities, habits, habitCompletions, chartViewMode, dateLocale, t, hasMounted]);
+  }, [habits, habitCompletions, chartViewMode, dateLocale, t, hasMounted]);
 
-  const chartBars: ChartBarProps[] = [
+
+  const activityChartBars: ChartBarProps[] = [
     { dataKey: 'totalActivities', fillVariable: '--chart-1', nameKey: 'dashboardChartTotalActivities', radius: [4,4,0,0]},
     { dataKey: 'completedActivities', fillVariable: '--chart-2', nameKey: 'dashboardChartCompletedActivities', radius: [4,4,0,0]},
+  ];
+  
+  const habitChartBars: ChartBarProps[] = [
     { dataKey: 'totalHabitSlots', fillVariable: '--chart-3', nameKey: 'dashboardChartTotalHabits', radius: [4,4,0,0]},
     { dataKey: 'completedHabitSlots', fillVariable: '--chart-4', nameKey: 'dashboardChartCompletedHabits', radius: [4,4,0,0]},
   ];
@@ -414,7 +453,7 @@ export default function DashboardPage() {
       const dateDiff = a.originalDate.getTime() - b.originalDate.getTime();
       if (dateDiff !== 0) return dateDiff;
       
-      const timeA = a.displayTime ? parseInt(a.displayTime.replace(':', ''), 10) : (a.type === 'activity' ? -1 : Infinity) ; // Activities without time first, then habits without time
+      const timeA = a.displayTime ? parseInt(a.displayTime.replace(':', ''), 10) : (a.type === 'activity' ? -1 : Infinity) ;
       const timeB = b.displayTime ? parseInt(b.displayTime.replace(':', ''), 10) : (b.type === 'activity' ? -1 : Infinity) ;
       if (timeA !== timeB) return timeA - timeB;
 
@@ -505,7 +544,7 @@ export default function DashboardPage() {
     relevantHabitSlots.forEach(hs => {
         const dayName = dayIndexToName(getDayOfWeekFn(hs.date));
         if (dayName && dayOfWeekData[dayName]) {
-            dayOfWeekData[dayName].total++; // Assuming all habit slots in range are "scheduled"
+            dayOfWeekData[dayName].total++; 
             if (hs.isCompleted) {
                 dayOfWeekData[dayName].completed++;
             } else {
@@ -559,9 +598,8 @@ export default function DashboardPage() {
     const rawMasterActivities = getRawActivities();
     const allDaysWithScheduledItems = new Map<string, { activities: Activity[], habitSlots: ProcessedHabitSlotOccurrence[], allActivitiesCompleted: boolean, allHabitsCompleted: boolean }>();
 
-    // Iterate through a relevant period (e.g., last year to today)
     const todayForStreak = startOfDay(new Date());
-    const oneYearAgo = startOfDay(subDays(todayForStreak, 365)); // Look back up to a year for streaks
+    const oneYearAgo = startOfDay(subDays(todayForStreak, 365)); 
 
     eachDayOfInterval({ start: oneYearAgo, end: todayForStreak }).forEach(day => {
         const dateKey = formatISO(day, {representation: 'date'});
@@ -588,7 +626,6 @@ export default function DashboardPage() {
     const sortedCompletionDayKeys = Array.from(allDaysWithScheduledItems.keys())
       .filter(dateKey => {
           const dayData = allDaysWithScheduledItems.get(dateKey)!;
-          // A day is "streak-worthy" if there was anything scheduled AND everything scheduled was completed
           const hasScheduledItems = dayData.activities.length > 0 || dayData.habitSlots.length > 0;
           const allItemsCompleted = dayData.allActivitiesCompleted && dayData.allHabitsCompleted;
           return hasScheduledItems && allItemsCompleted;
@@ -612,21 +649,16 @@ export default function DashboardPage() {
     }
     longestStreakVal = Math.max(longestStreakVal, tempStreak);
     
-    const todayDateKey = formatISO(todayForStreak, {representation: 'date'});
-    const yesterdayDateKey = formatISO(subDays(todayForStreak, 1), {representation: 'date'});
-
-    let streakDayCandidate = todayForStreak;
-
     const isDayStreakWorthyCompleted = (date: Date): boolean => {
         const key = formatISO(date, {representation: 'date'});
         const dayData = allDaysWithScheduledItems.get(key);
-        if (!dayData) return false; // No scheduled items, doesn't count for streak
+        if (!dayData) return false; 
         return (dayData.activities.length > 0 || dayData.habitSlots.length > 0) &&
                dayData.allActivitiesCompleted && dayData.allHabitsCompleted;
     };
 
     if (!isDayStreakWorthyCompleted(todayForStreak) && !isDayStreakWorthyCompleted(subDays(todayForStreak,1))) {
-        currentStreakVal = 0; // Neither today nor yesterday was completed perfectly for streak
+        currentStreakVal = 0; 
     } else {
         let currentTempStreak = 0;
         let checkDate = isDayStreakWorthyCompleted(todayForStreak) ? todayForStreak : subDays(todayForStreak,1);
@@ -643,11 +675,10 @@ export default function DashboardPage() {
 
 
   const activityCategoryChartBars: ChartBarProps[] = [ { dataKey: 'count', fillVariable: '--chart-1', nameKey: 'dashboardActivityCountLabel', radius: [4,4,0,0] } ];
-  const habitPerformanceChartBars: ChartBarProps[] = [ { dataKey: 'count', fillVariable: '--chart-5', nameKey: 'dashboardHabitCompletionsLabel', radius: [4,4,0,0] } ]; // New nameKey
+  const habitPerformanceChartBars: ChartBarProps[] = [ { dataKey: 'count', fillVariable: '--chart-5', nameKey: 'dashboardHabitCompletionsLabel', radius: [4,4,0,0] } ];
   const dayOfWeekChartBars: ChartBarProps[] = [ { dataKey: 'count', fillVariable: '--chart-2', nameKey: 'dashboardCompletionsChartLabel', radius: [4,4,0,0] } ];
 
 
-  // Handler for editing an activity (used by ActivityListItem)
   const handleEditActivity = (activityInstanceOrMaster: Activity) => {
     const rawActs = getRawActivities();
     const masterAct = activityInstanceOrMaster.masterActivityId
@@ -666,9 +697,7 @@ export default function DashboardPage() {
   const handleDeleteActivity = async (activityToDelete: Activity) => {
     if (activityToDelete) {
       const masterActivityId = activityToDelete.masterActivityId || activityToDelete.id;
-      // Call appStore deleteActivity, which handles backend and state update
       await deleteActivity(masterActivityId);
-      // The list will re-render due to state change in AppProvider
     }
   };
 
@@ -732,23 +761,41 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent className="pt-2">
           {dashboardMainView === 'chart' && (
-            <div>
-              <p className="text-sm text-muted-foreground mb-4">
-                {chartViewMode === 'weekly' ? t('dashboardViewWeekly') : t('dashboardViewMonthly')}
-              </p>
-              <Tabs value={chartViewMode} onValueChange={(value) => setChartViewMode(value as ChartViewMode)} className="mb-6">
-                <TabsList className="grid w-full grid-cols-2 md:w-1/2">
-                  <TabsTrigger value="weekly">{t('dashboardViewWeekly')}</TabsTrigger>
-                  <TabsTrigger value="monthly">{t('dashboardViewMonthly')}</TabsTrigger>
-                </TabsList>
-              </Tabs>
-              {chartData.length > 0 && chartData.some(d => d.totalActivities > 0 || d.completedActivities > 0 || d.totalHabitSlots > 0 || d.completedHabitSlots > 0) ? (
-                 <BarChart data={chartData} bars={chartBars} xAxisDataKey="name" />
-              ) : (
-                <div className="flex items-center justify-center h-[350px] text-muted-foreground">
-                  {t('dashboardNoData')}
-                </div>
-              )}
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-lg font-semibold mb-1">{t('dashboardActivityChartTitle')}</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {chartViewMode === 'weekly' ? t('dashboardViewWeekly') : t('dashboardViewMonthly')}
+                </p>
+                <Tabs value={chartViewMode} onValueChange={(value) => setChartViewMode(value as ChartViewMode)} className="mb-6">
+                  <TabsList className="grid w-full grid-cols-2 md:w-1/2">
+                    <TabsTrigger value="weekly">{t('dashboardViewWeekly')}</TabsTrigger>
+                    <TabsTrigger value="monthly">{t('dashboardViewMonthly')}</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                {activityChartData.length > 0 && activityChartData.some(d => Number(d.totalActivities) > 0 || Number(d.completedActivities) > 0) ? (
+                   <BarChart data={activityChartData} bars={activityChartBars} xAxisDataKey="name" />
+                ) : (
+                  <div className="flex items-center justify-center h-[350px] text-muted-foreground">
+                    {t('dashboardNoData')}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                 <h3 className="text-lg font-semibold mb-1">{t('dashboardHabitChartTitle')}</h3>
+                 <p className="text-sm text-muted-foreground mb-4">
+                    {chartViewMode === 'weekly' ? t('dashboardViewWeekly') : t('dashboardViewMonthly')}
+                </p>
+                {/* Tabs for chartViewMode can be reused if it controls both charts, or make separate state if needed */}
+                 {habitChartData.length > 0 && habitChartData.some(d => Number(d.totalHabitSlots) > 0 || Number(d.completedHabitSlots) > 0) ? (
+                   <BarChart data={habitChartData} bars={habitChartBars} xAxisDataKey="name" />
+                ) : (
+                  <div className="flex items-center justify-center h-[350px] text-muted-foreground">
+                    {t('dashboardNoData')}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -773,11 +820,11 @@ export default function DashboardPage() {
                             category={activityItem.category}
                             onEdit={() => handleEditActivity(activityItem.item)}
                             onDelete={async () => await handleDeleteActivity(activityItem.item)}
-                            showDate={true} // Always show date in dashboard list
+                            showDate={true}
                             instanceDate={activityItem.originalDate}
                           />
                         );
-                      } else { // habit
+                      } else { 
                         const habitItem = dashboardItem as HabitDashboardItem;
                         return (
                            <Card key={habitItem.id} className={cn("shadow-sm p-0", habitItem.isCompleted && "opacity-70")}>
@@ -785,13 +832,13 @@ export default function DashboardPage() {
                                 habit={habitItem.item.habit}
                                 slot={habitItem.item.slot}
                                 date={habitItem.originalDate}
-                                completionStatus={{completed: habitItem.isCompleted, completionId: undefined /* Not needed for display toggle */}}
+                                completionStatus={{completed: habitItem.isCompleted, completionId: undefined }}
                                 onToggleCompletion={(completed) => {
                                   const dateKey = formatISO(habitItem.originalDate, { representation: 'date' });
-                                  // Find existing completion to pass for toggling
                                   const existingCompletion = habitCompletions[habitItem.item.habit.id]?.[dateKey]?.[habitItem.item.slot.id];
                                   toggleHabitSlotCompletion(habitItem.item.habit.id, habitItem.item.slot.id, dateKey, existingCompletion);
                                 }}
+                                showDate={true}
                               />
                            </Card>
                         );

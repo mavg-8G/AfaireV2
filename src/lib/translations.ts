@@ -266,6 +266,8 @@ export type Translations = {
   dashboardProductivityView: string;
   dashboardViewWeekly: string;
   dashboardViewMonthly: string;
+  dashboardActivityChartTitle: string; // New
+  dashboardHabitChartTitle: string; // New
   dashboardChartTotalActivities: string;
   dashboardChartCompletedActivities: string;
   dashboardChartTotalHabits: string;
@@ -279,7 +281,7 @@ export type Translations = {
   dashboardListCurrentMonth: string;
   dashboardNoActivitiesForList: string;
   dashboardNotesLabel: string;
-  dashboardActivityCountLabel: string; // "Completed Activities" (used for category chart)
+  dashboardActivityCountLabel: string; 
   dashboardCompletionStats: string;
   dashboardOverallCompletionRate: string;
   dashboardTotalScheduledItemsLabel: string;
@@ -296,8 +298,8 @@ export type Translations = {
   dashboardCurrentStreak: string;
   dashboardLongestStreak: string;
   dashboardStreakDays: (params: { count: number }) => string;
-  dashboardStreakInsight: string; // General insight for streaks (old)
-  dashboardStreakInsightCombined: string; // New insight for combined activity/habit streaks
+  dashboardStreakInsight: string; 
+  dashboardStreakInsightCombined: string; 
   dashboardFailureAnalysisTitle: string;
   dashboardFailureAnalysisMostIncomplete: (params: { days: string }) => string;
   dashboardFailureAnalysisAllComplete: string;
@@ -620,6 +622,8 @@ export const translations: Record<Locale, Translations> = {
     dashboardProductivityView: "Productivity",
     dashboardViewWeekly: "Last 7 Days",
     dashboardViewMonthly: "Current Month (by Week)",
+    dashboardActivityChartTitle: "Activity Overview",
+    dashboardHabitChartTitle: "Habit Overview",
     dashboardChartTotalActivities: "Total Activities",
     dashboardChartCompletedActivities: "Completed Activities",
     dashboardChartTotalHabits: "Total Habit Slots",
@@ -650,7 +654,7 @@ export const translations: Record<Locale, Translations> = {
     dashboardCurrentStreak: "Current Streak",
     dashboardLongestStreak: "Longest Streak",
     dashboardStreakDays: (params) => `${params.count} day${params.count === 1 ? '' : 's'}`,
-    dashboardStreakInsight: "Consistency is key! Uncompleted tasks break streaks.", // Old key
+    dashboardStreakInsight: "Consistency is key! Uncompleted tasks break streaks.", 
     dashboardStreakInsightCombined: "Consistency is key! Uncompleted activities or habits break streaks.",
     dashboardFailureAnalysisTitle: "What days do you usually miss your items?",
     dashboardFailureAnalysisMostIncomplete: (params) => `The days with the most incomplete items are: ${params.days}.`,
@@ -681,7 +685,7 @@ export const translations: Record<Locale, Translations> = {
         changes.push(`Time from "${params.oldTime || 'Not Set'}" to "${params.time || 'Not Set'}"`);
       }
       if (changes.length > 0) {
-        if (params.oldTitle && params.oldTitle === params.title) desc += `"${params.title}".`; // Add title if not part of changes
+        if (params.oldTitle && params.oldTitle === params.title) desc += `"${params.title}".`; 
         desc += ` Changes: ${changes.join(', ')}.`;
       } else if (!params.oldTitle || params.oldTitle === params.title) {
          desc += ` (no details changed in log).`;
@@ -1018,6 +1022,8 @@ export const translations: Record<Locale, Translations> = {
     dashboardProductivityView: "Productividad",
     dashboardViewWeekly: "Últimos 7 Días",
     dashboardViewMonthly: "Mes Actual (por Semana)",
+    dashboardActivityChartTitle: "Resumen de Actividades",
+    dashboardHabitChartTitle: "Resumen de Hábitos",
     dashboardChartTotalActivities: "Actividades Totales",
     dashboardChartCompletedActivities: "Actividades Completadas",
     dashboardChartTotalHabits: "Franjas de Hábitos Totales",
@@ -1416,6 +1422,8 @@ export const translations: Record<Locale, Translations> = {
     dashboardProductivityView: "Productivité",
     dashboardViewWeekly: "7 derniers jours",
     dashboardViewMonthly: "Mois en cours (par semaine)",
+    dashboardActivityChartTitle: "Aperçu des Activités",
+    dashboardHabitChartTitle: "Aperçu des Habitudes",
     dashboardChartTotalActivities: "Total des activités",
     dashboardChartCompletedActivities: "Activités terminées",
     dashboardChartTotalHabits: "Total Créneaux d'Habitudes",
@@ -1587,3 +1595,4 @@ type PathImpl<T, Key extends keyof T> =
 type Path<T> = PathImpl<T, keyof T> | keyof T;
 
 export type TranslationKey = Path<Translations['en']>;
+
