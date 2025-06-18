@@ -309,23 +309,23 @@ export type Translations = {
   dashboardFailureAnalysisInsight: string;
   dashboardFailureAnalysisNoData: string;
 
-  // History Page
+  // History Page & Logging
   historyPageTitle: string;
   historyPageDescription: string;
   noHistoryYet: string;
   historyLogLogin: (params: { username: string }) => string;
   historyLogLogout: (params: { username: string }) => string;
-  historyLogAddActivity: (params: { activityId: number, title: string, mode: string, categoryName?: string, date: string, time?: string }) => string;
-  historyLogUpdateActivity: (params: { activityId: number, title: string, mode: string, changes: string }) => string;
-  historyLogDeleteActivity: (params: { activityId: number, title: string, mode: string, categoryName?: string, date: string, time?: string }) => string;
-  historyLogToggleActivityCompletion: (params: { activityId: number, title: string, mode: string, completed: boolean, date: string, time?: string }) => string;
+  historyLogAddActivity: (params: { activityId: number, title: string, mode: string, categoryName: string, date: string, time: string }) => string;
+  historyLogUpdateActivity: (params: { activityId: number, title: string, mode: string, changesSummary: string }) => string;
+  historyLogDeleteActivity: (params: { activityId: number, title: string, mode: string, categoryName: string, date: string, time: string }) => string;
+  historyLogToggleActivityCompletion: (params: { activityId: number, title: string, mode: string, completed: boolean, date: string, time: string }) => string;
   historyLogAddCategory: (params: { categoryId: number, name: string, iconName: string, mode: string }) => string;
-  historyLogUpdateCategory: (params: { categoryId: number, newName: string, changes: string }) => string;
+  historyLogUpdateCategory: (params: { categoryId: number, name: string, changesSummary: string }) => string;
   historyLogDeleteCategory: (params: { categoryId: number, name: string, iconName: string, mode: string }) => string;
   historyLogSwitchMode: (params: { oldMode: string, newMode: string }) => string;
   historyLogPasswordChangeAttempt: (params: { userId: string }) => string;
-  historyLogAddAssignee: (params: { assigneeId: number, name: string, username: string, isAdmin?: boolean }) => string;
-  historyLogUpdateAssignee: (params: { assigneeId: number, name: string, changes: string }) => string;
+  historyLogAddAssignee: (params: { assigneeId: number, name: string, username: string, isAdmin: boolean }) => string;
+  historyLogUpdateAssignee: (params: { assigneeId: number, name: string, changesSummary: string }) => string;
   historyLogDeleteAssignee: (params: { assigneeId: number, name: string, username: string }) => string;
   historyScopeAccount: string;
   historyScopePersonal: string;
@@ -334,11 +334,9 @@ export type Translations = {
   historyScopeAssignee: string;
   historyScopeHabit: string;
   historyLogAddHabit: (params: { name: string }) => string;
-  historyLogUpdateHabit: (params: { newName: string, oldName?: string }) => string;
+  historyLogUpdateHabit: (params: { habitId: number, name: string, changesSummary: string }) => string;
   historyLogDeleteHabit: (params: { name: string }) => string;
   historyLogToggleHabitCompletion: (params: { habitName: string, slotName: string, date: string, completed: boolean }) => string;
-
-  // Generic Fallbacks / Placeholders for History
   unknownUser: string;
   unknownText: string;
   unknownActivityTitle: string;
@@ -347,9 +345,20 @@ export type Translations = {
   unknownDate: string;
   timeNotSet: string;
   uncategorized: string;
-  noChangeDetected: string;
-  detailsNotAvailable: string;
-  fieldChange: (params: { field: string, from: string, to: string }) => string;
+  notSetValuePlaceholder: string;
+  noDetailedChangesLogged: string;
+  fieldChangeDetail: (params: { field: string, from: string, to: string }) => string;
+  fieldSetToDetail: (params: { field: string, value: string }) => string;
+  titleLabel: string;
+  iconNameLabel: string;
+  modeLabel: string;
+  dateLabel: string;
+  timeLabel: string;
+  notesLabel: string;
+  responsiblePeopleLabelShort: string; // For history
+  recurrenceLabelShort: string; // For history
+  adminStatusLabel: string;
+  passwordChangedConfirmation: string;
 
 
   // Habits Feature
@@ -684,18 +693,18 @@ export const translations: Record<Locale, Translations> = {
     noHistoryYet: "No activity recorded in this session yet.",
     historyLogLogin: (params) => `User "${params.username}" logged in.`,
     historyLogLogout: (params) => `User "${params.username}" logged out.`,
-    historyLogAddActivity: (params) => `Added ${params.mode} Activity (ID: ${params.activityId}): "${params.title}"${params.categoryName ? ` in category "${params.categoryName}"` : ''} for ${params.date}${params.time ? ` at ${params.time}` : ''}.`,
-    historyLogUpdateActivity: (params) => `Updated ${params.mode} Activity (ID: ${params.activityId}): "${params.title}". ${params.changes ? `Changes: ${params.changes}` : 'Details checked.'}`,
-    historyLogDeleteActivity: (params) => `Deleted ${params.mode} Activity (ID: ${params.activityId}): "${params.title}"${params.categoryName ? ` from category "${params.categoryName}"` : ''} (was for ${params.date}${params.time ? ` at ${params.time}` : ''}).`,
-    historyLogToggleActivityCompletion: (params) => `Marked ${params.mode} Activity (ID: ${params.activityId}) "${params.title}" for ${params.date}${params.time ? ` at ${params.time}` : ''} as ${params.completed ? 'completed' : 'incomplete'}.`,
-    historyLogAddCategory: (params) => `Added ${params.mode} Category (ID: ${params.categoryId}): "${params.name}" (Icon: ${params.iconName}).`,
-    historyLogUpdateCategory: (params) => `Updated Category (ID: ${params.categoryId}): "${params.newName}". ${params.changes ? `Changes: ${params.changes}` : 'Details checked.'}`,
-    historyLogDeleteCategory: (params) => `Deleted ${params.mode} Category (ID: ${params.categoryId}): "${params.name}" (Icon: ${params.iconName}).`,
+    historyLogAddActivity: (params) => `Added ${params.mode} Activity: "${params.title}" (Category: ${params.categoryName}) for ${params.date} at ${params.time}. (ID: ${params.activityId})`,
+    historyLogUpdateActivity: (params) => `Updated ${params.mode} Activity "${params.title}" (ID: ${params.activityId}). ${params.changesSummary}`,
+    historyLogDeleteActivity: (params) => `Deleted ${params.mode} Activity: "${params.title}" (Category: ${params.categoryName}) for ${params.date} at ${params.time}. (ID: ${params.activityId})`,
+    historyLogToggleActivityCompletion: (params) => `Marked ${params.mode} Activity "${params.title}" (ID: ${params.activityId}) for ${params.date} at ${params.time} as ${params.completed ? 'completed' : 'incomplete'}.`,
+    historyLogAddCategory: (params) => `Added Category: "${params.name}" (Icon: ${params.iconName}, Mode: ${params.mode}). (ID: ${params.categoryId})`,
+    historyLogUpdateCategory: (params) => `Updated Category "${params.name}" (ID: ${params.categoryId}). ${params.changesSummary}`,
+    historyLogDeleteCategory: (params) => `Deleted Category: "${params.name}" (Icon: ${params.iconName}, Mode: ${params.mode}). (ID: ${params.categoryId})`,
     historyLogSwitchMode: (params) => `Switched mode from ${params.oldMode} to ${params.newMode}.`,
     historyLogPasswordChangeAttempt: (params) => `Password change attempt for user ID: ${params.userId}.`,
-    historyLogAddAssignee: (params) => `Added Assignee (ID: ${params.assigneeId}): "${params.name}" (Username: ${params.username})${params.isAdmin ? ' (Admin)' : ''}.`,
-    historyLogUpdateAssignee: (params) => `Updated Assignee (ID: ${params.assigneeId}): "${params.name}". ${params.changes ? `Changes: ${params.changes}` : 'Details checked.'}`,
-    historyLogDeleteAssignee: (params) => `Deleted Assignee (ID: ${params.assigneeId}): "${params.name}" (Username: ${params.username}).`,
+    historyLogAddAssignee: (params) => `Added Assignee: "${params.name}" (Username: ${params.username}, Admin: ${params.isAdmin ? 'Yes' : 'No'}). (ID: ${params.assigneeId})`,
+    historyLogUpdateAssignee: (params) => `Updated Assignee "${params.name}" (ID: ${params.assigneeId}). ${params.changesSummary}`,
+    historyLogDeleteAssignee: (params) => `Deleted Assignee: "${params.name}" (Username: ${params.username}). (ID: ${params.assigneeId})`,
     historyScopeAccount: "Account",
     historyScopePersonal: "Personal",
     historyScopeWork: "Work",
@@ -703,20 +712,31 @@ export const translations: Record<Locale, Translations> = {
     historyScopeAssignee: "Assignee",
     historyScopeHabit: "Habit",
     historyLogAddHabit: (params) => `Added Habit: "${params.name}".`,
-    historyLogUpdateHabit: (params) => `Updated Habit: from "${params.oldName}" to "${params.newName}".`,
+    historyLogUpdateHabit: (params) => `Updated Habit "${params.name}" (ID: ${params.habitId}). ${params.changesSummary}`,
     historyLogDeleteHabit: (params) => `Deleted Habit: "${params.name}".`,
-    historyLogToggleHabitCompletion: (params) => `Toggled Habit "${params.habitName}", Slot "${params.slotName}" on ${params.date} to ${params.completed ? 'completed' : 'incomplete'}.`,
+    historyLogToggleHabitCompletion: (params) => `Habit "${params.habitName}", Slot "${params.slotName}" on ${params.date} marked as ${params.completed ? 'completed' : 'incomplete'}.`,
     unknownUser: "Unknown User",
     unknownText: "N/A",
-    unknownActivityTitle: "Unknown Activity",
+    unknownActivityTitle: "Unnamed Activity",
     unknownHabit: "Unknown Habit",
     unknownSlot: "Unknown Slot",
-    unknownDate: "Unknown Date",
+    unknownDate: "Date N/A",
     timeNotSet: "Time not set",
     uncategorized: "Uncategorized",
-    noChangeDetected: "No changes detected.",
-    detailsNotAvailable: "Details not available.",
-    fieldChange: (params) => `${params.field} changed from "${params.from}" to "${params.to}"`,
+    notSetValuePlaceholder: "Not set",
+    noDetailedChangesLogged: "Details verified, no specific field changes.",
+    fieldChangeDetail: (params) => `${params.field} changed from "${params.from}" to "${params.to}"`,
+    fieldSetToDetail: (params) => `${params.field} set to "${params.value}"`,
+    titleLabel: "Title",
+    iconNameLabel: "Icon Name",
+    modeLabel: "Mode",
+    dateLabel: "Date",
+    timeLabel: "Time",
+    notesLabel: "Notes",
+    responsiblePeopleLabelShort: "Assignees",
+    recurrenceLabelShort: "Recurrence",
+    adminStatusLabel: "Admin Status",
+    passwordChangedConfirmation: "Password was changed.",
     manageHabits: "Manage Habits",
     habitsPageDescription: "Create and manage your daily habits.",
     habitsFeatureComingSoon: "Habit tracking feature coming soon! Use this page to manage your habits.",
@@ -1051,18 +1071,18 @@ export const translations: Record<Locale, Translations> = {
     noHistoryYet: "Aún no se ha registrado actividad en esta sesión.",
     historyLogLogin: (params) => `Usuario "${params.username}" inició sesión.`,
     historyLogLogout: (params) => `Usuario "${params.username}" cerró sesión.`,
-    historyLogAddActivity: (params) => `Añadida Actividad (${params.mode}) (ID: ${params.activityId}): "${params.title}"${params.categoryName ? ` en categoría "${params.categoryName}"` : ''} para ${params.date}${params.time ? ` a las ${params.time}` : ''}.`,
-    historyLogUpdateActivity: (params) => `Actualizada Actividad (${params.mode}) (ID: ${params.activityId}): "${params.title}". ${params.changes ? `Cambios: ${params.changes}` : 'Detalles verificados.'}`,
-    historyLogDeleteActivity: (params) => `Eliminada Actividad (${params.mode}) (ID: ${params.activityId}): "${params.title}"${params.categoryName ? ` de categoría "${params.categoryName}"` : ''} (era para ${params.date}${params.time ? ` a las ${params.time}` : ''}).`,
-    historyLogToggleActivityCompletion: (params) => `Marcada Actividad (${params.mode}) (ID: ${params.activityId}) "${params.title}" para ${params.date}${params.time ? ` a las ${params.time}` : ''} como ${params.completed ? 'completada' : 'incompleta'}.`,
-    historyLogAddCategory: (params) => `Añadida Categoría (${params.mode}) (ID: ${params.categoryId}): "${params.name}" (Icono: ${params.iconName}).`,
-    historyLogUpdateCategory: (params) => `Actualizada Categoría (ID: ${params.categoryId}): "${params.newName}". ${params.changes ? `Cambios: ${params.changes}` : 'Detalles verificados.'}`,
-    historyLogDeleteCategory: (params) => `Eliminada Categoría (${params.mode}) (ID: ${params.categoryId}): "${params.name}" (Icono: ${params.iconName}).`,
+    historyLogAddActivity: (params) => `Añadida Actividad (${params.mode}): "${params.title}" (Categoría: ${params.categoryName}) para ${params.date} a las ${params.time}. (ID: ${params.activityId})`,
+    historyLogUpdateActivity: (params) => `Actualizada Actividad (${params.mode}) "${params.title}" (ID: ${params.activityId}). ${params.changesSummary}`,
+    historyLogDeleteActivity: (params) => `Eliminada Actividad (${params.mode}): "${params.title}" (Categoría: ${params.categoryName}) para ${params.date} a las ${params.time}. (ID: ${params.activityId})`,
+    historyLogToggleActivityCompletion: (params) => `Marcada Actividad (${params.mode}) "${params.title}" (ID: ${params.activityId}) para ${params.date} a las ${params.time} como ${params.completed ? 'completada' : 'incompleta'}.`,
+    historyLogAddCategory: (params) => `Añadida Categoría: "${params.name}" (Icono: ${params.iconName}, Modo: ${params.mode}). (ID: ${params.categoryId})`,
+    historyLogUpdateCategory: (params) => `Actualizada Categoría "${params.name}" (ID: ${params.categoryId}). ${params.changesSummary}`,
+    historyLogDeleteCategory: (params) => `Eliminada Categoría: "${params.name}" (Icono: ${params.iconName}, Modo: ${params.mode}). (ID: ${params.categoryId})`,
     historyLogSwitchMode: (params) => `Cambiado modo de ${params.oldMode} a ${params.newMode}.`,
     historyLogPasswordChangeAttempt: (params) => `Intento de cambio de contraseña para usuario ID: ${params.userId}.`,
-    historyLogAddAssignee: (params) => `Asignado añadido (ID: ${params.assigneeId}): "${params.name}" (Usuario: ${params.username})${params.isAdmin ? ' (Admin)' : ''}.`,
-    historyLogUpdateAssignee: (params) => `Asignado actualizado (ID: ${params.assigneeId}): "${params.name}". ${params.changes ? `Cambios: ${params.changes}` : 'Detalles verificados.'}`,
-    historyLogDeleteAssignee: (params) => `Asignado eliminado (ID: ${params.assigneeId}): "${params.name}" (Usuario: ${params.username}).`,
+    historyLogAddAssignee: (params) => `Asignado añadido: "${params.name}" (Usuario: ${params.username}, Admin: ${params.isAdmin ? 'Sí' : 'No'}). (ID: ${params.assigneeId})`,
+    historyLogUpdateAssignee: (params) => `Asignado actualizado "${params.name}" (ID: ${params.assigneeId}). ${params.changesSummary}`,
+    historyLogDeleteAssignee: (params) => `Asignado eliminado: "${params.name}" (Usuario: ${params.username}). (ID: ${params.assigneeId})`,
     historyScopeAccount: "Cuenta",
     historyScopePersonal: "Personal",
     historyScopeWork: "Trabajo",
@@ -1070,20 +1090,31 @@ export const translations: Record<Locale, Translations> = {
     historyScopeAssignee: "Asignado",
     historyScopeHabit: "Hábito",
     historyLogAddHabit: (params) => `Añadido Hábito: "${params.name}".`,
-    historyLogUpdateHabit: (params) => `Actualizado Hábito: de "${params.oldName}" a "${params.newName}".`,
+    historyLogUpdateHabit: (params) => `Actualizado Hábito "${params.name}" (ID: ${params.habitId}). ${params.changesSummary}`,
     historyLogDeleteHabit: (params) => `Eliminado Hábito: "${params.name}".`,
     historyLogToggleHabitCompletion: (params) => `Hábito "${params.habitName}", Franja "${params.slotName}" en ${params.date} marcado como ${params.completed ? 'completado' : 'incompleto'}.`,
     unknownUser: "Usuario Desconocido",
     unknownText: "N/A",
-    unknownActivityTitle: "Actividad Desconocida",
-    unknownHabit: "Hábito Desconocido",
-    unknownSlot: "Franja Desconocida",
-    unknownDate: "Fecha Desconocida",
+    unknownActivityTitle: "Actividad sin nombre",
+    unknownHabit: "Hábito desconocido",
+    unknownSlot: "Franja desconocida",
+    unknownDate: "Fecha N/A",
     timeNotSet: "Hora no establecida",
     uncategorized: "Sin categoría",
-    noChangeDetected: "No se detectaron cambios.",
-    detailsNotAvailable: "Detalles no disponibles.",
-    fieldChange: (params) => `${params.field} cambiado de "${params.from}" a "${params.to}"`,
+    notSetValuePlaceholder: "Sin especificar",
+    noDetailedChangesLogged: "Detalles verificados, sin cambios específicos de campo.",
+    fieldChangeDetail: (params) => `${params.field} cambiado de "${params.from}" a "${params.to}"`,
+    fieldSetToDetail: (params) => `${params.field} establecido a "${params.value}"`,
+    titleLabel: "Título",
+    iconNameLabel: "Nombre de Icono",
+    modeLabel: "Modo",
+    dateLabel: "Fecha",
+    timeLabel: "Hora",
+    notesLabel: "Notas",
+    responsiblePeopleLabelShort: "Asignados",
+    recurrenceLabelShort: "Recurrencia",
+    adminStatusLabel: "Estado Admin",
+    passwordChangedConfirmation: "La contraseña fue cambiada.",
     manageHabits: "Gestionar Hábitos",
     habitsPageDescription: "Crea y gestiona tus hábitos diarios.",
     habitsFeatureComingSoon: "¡La función de seguimiento de hábitos llegará pronto! Utiliza esta página para gestionar tus hábitos.",
@@ -1418,18 +1449,18 @@ export const translations: Record<Locale, Translations> = {
     noHistoryYet: "Aucune activité enregistrée dans cette session pour le moment.",
     historyLogLogin: (params) => `Utilisateur "${params.username}" connecté.`,
     historyLogLogout: (params) => `Utilisateur "${params.username}" déconnecté.`,
-    historyLogAddActivity: (params) => `Activité (${params.mode}) (ID: ${params.activityId}) ajoutée : "${params.title}"${params.categoryName ? ` dans la catégorie "${params.categoryName}"` : ''} pour le ${params.date}${params.time ? ` à ${params.time}` : ''}.`,
-    historyLogUpdateActivity: (params) => `Activité (${params.mode}) (ID: ${params.activityId}) mise à jour : "${params.title}". ${params.changes ? `Modifications : ${params.changes}` : 'Détails vérifiés.'}`,
-    historyLogDeleteActivity: (params) => `Activité (${params.mode}) (ID: ${params.activityId}) supprimée : "${params.title}"${params.categoryName ? ` de la catégorie "${params.categoryName}"` : ''} (était pour le ${params.date}${params.time ? ` à ${params.time}` : ''}).`,
-    historyLogToggleActivityCompletion: (params) => `Activité (${params.mode}) (ID: ${params.activityId}) "${params.title}" pour le ${params.date}${params.time ? ` à ${params.time}` : ''} marquée comme ${params.completed ? 'terminée' : 'non terminée'}.`,
-    historyLogAddCategory: (params) => `Catégorie (${params.mode}) (ID: ${params.categoryId}) ajoutée : "${params.name}" (Icône : ${params.iconName}).`,
-    historyLogUpdateCategory: (params) => `Catégorie (ID: ${params.categoryId}) mise à jour : "${params.newName}". ${params.changes ? `Modifications : ${params.changes}` : 'Détails vérifiés.'}`,
-    historyLogDeleteCategory: (params) => `Catégorie (${params.mode}) (ID: ${params.categoryId}) supprimée : "${params.name}" (Icône : ${params.iconName}).`,
+    historyLogAddActivity: (params) => `Activité (${params.mode}) ajoutée : "${params.title}" (Catégorie : ${params.categoryName}) pour le ${params.date} à ${params.time}. (ID : ${params.activityId})`,
+    historyLogUpdateActivity: (params) => `Activité (${params.mode}) "${params.title}" (ID : ${params.activityId}) mise à jour. ${params.changesSummary}`,
+    historyLogDeleteActivity: (params) => `Activité (${params.mode}) supprimée : "${params.title}" (Catégorie : ${params.categoryName}) pour le ${params.date} à ${params.time}. (ID : ${params.activityId})`,
+    historyLogToggleActivityCompletion: (params) => `Activité (${params.mode}) "${params.title}" (ID : ${params.activityId}) pour le ${params.date} à ${params.time} marquée comme ${params.completed ? 'terminée' : 'non terminée'}.`,
+    historyLogAddCategory: (params) => `Catégorie ajoutée : "${params.name}" (Icône : ${params.iconName}, Mode : ${params.mode}). (ID : ${params.categoryId})`,
+    historyLogUpdateCategory: (params) => `Catégorie "${params.name}" (ID : ${params.categoryId}) mise à jour. ${params.changesSummary}`,
+    historyLogDeleteCategory: (params) => `Catégorie supprimée : "${params.name}" (Icône : ${params.iconName}, Mode : ${params.mode}). (ID : ${params.categoryId})`,
     historyLogSwitchMode: (params) => `Mode changé de ${params.oldMode} à ${params.newMode}.`,
     historyLogPasswordChangeAttempt: (params) => `Tentative de changement de mot de passe pour l'utilisateur ID : ${params.userId}.`,
-    historyLogAddAssignee: (params) => `Personne assignée (ID: ${params.assigneeId}) ajoutée : "${params.name}" (Utilisateur : ${params.username})${params.isAdmin ? ' (Admin)' : ''}.`,
-    historyLogUpdateAssignee: (params) => `Personne assignée (ID: ${params.assigneeId}) mise à jour : "${params.name}". ${params.changes ? `Modifications : ${params.changes}` : 'Détails vérifiés.'}`,
-    historyLogDeleteAssignee: (params) => `Personne assignée (ID: ${params.assigneeId}) supprimée : "${params.name}" (Utilisateur : ${params.username}).`,
+    historyLogAddAssignee: (params) => `Personne assignée ajoutée : "${params.name}" (Utilisateur : ${params.username}, Admin : ${params.isAdmin ? 'Oui' : 'Non'}). (ID : ${params.assigneeId})`,
+    historyLogUpdateAssignee: (params) => `Personne assignée "${params.name}" (ID : ${params.assigneeId}) mise à jour. ${params.changesSummary}`,
+    historyLogDeleteAssignee: (params) => `Personne assignée supprimée : "${params.name}" (Utilisateur : ${params.username}). (ID : ${params.assigneeId})`,
     historyScopeAccount: "Compte",
     historyScopePersonal: "Personnel",
     historyScopeWork: "Travail",
@@ -1437,20 +1468,31 @@ export const translations: Record<Locale, Translations> = {
     historyScopeAssignee: "Personne Assignée",
     historyScopeHabit: "Habitude",
     historyLogAddHabit: (params) => `Habitude ajoutée : "${params.name}".`,
-    historyLogUpdateHabit: (params) => `Habitude mise à jour : de "${params.oldName}" à "${params.newName}".`,
+    historyLogUpdateHabit: (params) => `Habitude "${params.name}" (ID : ${params.habitId}) mise à jour. ${params.changesSummary}`,
     historyLogDeleteHabit: (params) => `Habitude supprimée : "${params.name}".`,
     historyLogToggleHabitCompletion: (params) => `Habitude "${params.habitName}", Créneau "${params.slotName}" le ${params.date} marqué comme ${params.completed ? 'terminé' : 'incomplet'}.`,
     unknownUser: "Utilisateur Inconnu",
     unknownText: "N/A",
-    unknownActivityTitle: "Activité Inconnue",
-    unknownHabit: "Habitude Inconnue",
-    unknownSlot: "Créneau Inconnu",
-    unknownDate: "Date Inconnue",
+    unknownActivityTitle: "Activité sans nom",
+    unknownHabit: "Habitude inconnue",
+    unknownSlot: "Créneau inconnu",
+    unknownDate: "Date N/A",
     timeNotSet: "Heure non définie",
     uncategorized: "Non catégorisé",
-    noChangeDetected: "Aucun changement détecté.",
-    detailsNotAvailable: "Détails non disponibles.",
-    fieldChange: (params) => `${params.field} changé de "${params.from}" à "${params.to}"`,
+    notSetValuePlaceholder: "Non défini",
+    noDetailedChangesLogged: "Détails vérifiés, aucune modification de champ spécifique.",
+    fieldChangeDetail: (params) => `${params.field} changé de "${params.from}" à "${params.to}"`,
+    fieldSetToDetail: (params) => `${params.field} défini à "${params.value}"`,
+    titleLabel: "Titre",
+    iconNameLabel: "Nom de l'icône",
+    modeLabel: "Mode",
+    dateLabel: "Date",
+    timeLabel: "Heure",
+    notesLabel: "Notes",
+    responsiblePeopleLabelShort: "Assignés",
+    recurrenceLabelShort: "Récurrence",
+    adminStatusLabel: "Statut Admin",
+    passwordChangedConfirmation: "Le mot de passe a été changé.",
     manageHabits: "Gérer les habitudes",
     habitsPageDescription: "Créez et gérez vos habitudes quotidiennes.",
     habitsFeatureComingSoon: "La fonctionnalité de suivi des habitudes arrive bientôt ! Utilisez cette page pour gérer vos habitudes.",
@@ -1512,6 +1554,7 @@ type PathImpl<T, Key extends keyof T> =
 type Path<T> = PathImpl<T, keyof T> | keyof T;
 
 export type TranslationKey = Path<Translations['en']>;
+
 
 
 

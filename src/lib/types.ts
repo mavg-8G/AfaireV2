@@ -55,83 +55,77 @@ export interface RecurrenceRule {
 }
 
 // --- ACTIVITY OCCURRENCE ---
-// This is the response from GET /activity-occurrences and GET /activities/{id}/occurrences
 export interface BackendActivityOccurrenceResponse {
   id: number;
   activity_id: number;
-  date: string; // ISO datetime string from backend
+  date: string; 
   complete: boolean;
-  activity_title?: string; // Provided by backend
+  activity_title?: string; 
 }
 
 export interface BackendActivityOccurrenceCreate {
   activity_id: number;
-  date: string; // ISO datetime string to send to backend
+  date: string; 
   complete?: boolean;
 }
 
 export interface BackendActivityOccurrenceUpdate {
-  date?: string; // ISO datetime string
+  date?: string; 
   complete?: boolean;
 }
 
 
 // --- ACTIVITY ---
-// This is the primary frontend representation of an activity
 export interface Activity {
   id: number;
   title: string;
   categoryId: number;
-  todos: Todo[]; // Populated by a separate call to /activities/{id}/todos
-  createdAt: number; // Derived from backend start_date
+  todos: Todo[]; 
+  createdAt: number; 
   time?: string;
-  completed?: boolean; // For non-recurring, based on its single occurrence
-  completedAt?: number | null; // For non-recurring
+  completed?: boolean; 
+  completedAt?: number | null; 
   notes?: string;
   recurrence?: RecurrenceRule | null;
-  completedOccurrences: Record<string, boolean>; // Populated by /activities/{id}/occurrences or global /activity-occurrences
-  isRecurringInstance?: boolean; // Client-side flag for calendar instances
-  originalInstanceDate?: number; // Client-side flag for calendar instances
-  masterActivityId?: number; // Client-side flag for calendar instances
-  responsiblePersonIds?: number[]; // From backend responsible_ids
+  completedOccurrences: Record<string, boolean>; 
+  isRecurringInstance?: boolean; 
+  originalInstanceDate?: number; 
+  masterActivityId?: number; 
+  responsiblePersonIds?: number[]; 
   appMode: AppMode;
-  created_by_user_id?: number; // From backend
-  isSummary?: boolean; // Flag to indicate if this is a summary or full detail
+  created_by_user_id?: number; 
+  isSummary?: boolean; 
 }
 
-// This is the response from GET /activities (list) and GET /activities/{id} (single)
 export interface BackendActivityResponse {
   id: number;
   title: string;
-  start_date: string; // ISO datetime string
+  start_date: string; 
   time: string;
   category_id: number;
   repeat_mode: BackendRepeatMode;
-  end_date?: string | null; // ISO datetime string
-  days_of_week?: string | null; // Comma-separated string of day names
+  end_date?: string | null; 
+  days_of_week?: string | null; 
   day_of_month?: number | null;
   notes?: string | null;
   mode: BackendCategoryMode;
   responsible_ids: number[];
   created_by_user_id: number;
-  // This response type DOES NOT contain todos or full occurrence details directly.
 }
 
-// This type represents the response from GET /activities/{id}/todos
 export type BackendActivityTodosResponse = BackendTodo[];
 
-// This type represents the response from GET /activities/{id}/occurrences
 export type BackendActivityOccurrencesListResponse = BackendActivityOccurrenceResponse[];
 
 
 export interface BackendActivityCreatePayload {
   title: string;
-  start_date: string; // ISO datetime string
+  start_date: string; 
   time: string;
   category_id: number;
   repeat_mode?: BackendRepeatMode;
-  end_date?: string | null; // ISO datetime string
-  days_of_week?: string[] | null; // List of day name strings
+  end_date?: string | null; 
+  days_of_week?: string[] | null; 
   day_of_month?: number | null;
   notes?: string | null;
   mode: BackendCategoryMode;
@@ -141,17 +135,16 @@ export interface BackendActivityCreatePayload {
 
 export interface BackendActivityUpdatePayload {
   title?: string;
-  start_date?: string; // ISO datetime string
+  start_date?: string; 
   time?: string;
   category_id?: number;
   repeat_mode?: BackendRepeatMode;
-  end_date?: string | null; // ISO datetime string
-  days_of_week?: string[] | null; // List of day name strings
+  end_date?: string | null; 
+  days_of_week?: string[] | null; 
   day_of_month?: number | null;
   notes?: string | null;
   mode?: BackendCategoryMode;
   responsible_ids?: number[];
-  // Note: Todos are not updated via this payload as per backend spec
 }
 
 // --- CATEGORY ---
@@ -180,6 +173,7 @@ export interface BackendCategory {
   name: string;
   icon_name: string;
   mode: BackendCategoryMode;
+  user_id?: number; // Assuming it might come from backend if categories are user-specific
 }
 
 // --- ASSIGNEE (User on Backend) ---
@@ -226,8 +220,8 @@ export interface UINotification {
   timestamp: number;
   read: boolean;
   activityId?: number | string;
-  habitId?: number; // For habit notifications
-  slotId?: number; // For habit notifications
+  habitId?: number; 
+  slotId?: number; 
   instanceDate?: number;
 }
 
@@ -265,32 +259,36 @@ export interface HistoryLogEntry {
 export interface BackendHistoryCreatePayload {
     action: string;
     user_id: number;
+    details?: Record<string, any>; // Add details to backend payload
+    scope?: string; // Add scope to backend payload
 }
 
 export interface BackendHistory {
   id: number;
-  timestamp: string; // ISO datetime string
+  timestamp: string; 
   action: string;
   user_id: number;
   user?: BackendUser;
+  details?: Record<string, any>; // Expect details from backend
+  scope?: HistoryLogEntry['scope']; // Expect scope from backend
 }
 
 // --- HABITS ---
 export interface HabitSlot {
-  id: number; // Matches backend ID
+  id: number; 
   name: string;
-  default_time?: string; // HH:MM format
+  default_time?: string; 
   order?: number;
 }
 
 export interface Habit {
-  id: number; // Matches backend ID
+  id: number; 
   user_id?: number;
   name: string;
   iconName: string;
   icon: LucideIcon;
   slots: HabitSlot[];
-  createdAt: number; // Timestamp of habit creation
+  createdAt: number; 
 }
 
 export interface HabitSlotCreateData {
@@ -302,13 +300,13 @@ export interface HabitSlotCreateData {
 export interface HabitCreateData {
   name: string;
   icon_name: string;
-  slots: Omit<HabitSlotCreateData, 'id' | 'order'>[]; // Order handled by backend
+  slots: Omit<HabitSlotCreateData, 'id' | 'order'>[]; 
 }
 
 export interface HabitUpdateData {
   name?: string;
   icon_name?: string;
-  slots?: HabitSlotCreateData[]; // Include ID for existing slots
+  slots?: HabitSlotCreateData[]; 
 }
 
 export interface BackendHabitSlot {
@@ -322,14 +320,14 @@ export interface BackendHabit {
   user_id: number;
   name: string;
   icon_name: string;
-  created_at: string; // ISO datetime string from backend
+  created_at: string; 
   slots: BackendHabitSlot[];
 }
 
 
 export interface HabitSlotCompletionStatus {
   completed: boolean;
-  completionId?: number; // Backend ID of the HabitCompletion record
+  completionId?: number; 
 }
 
 export type HabitCompletions = Record<number, Record<string, Record<number, HabitSlotCompletionStatus>>>;
@@ -338,7 +336,7 @@ export type HabitCompletions = Record<number, Record<string, Record<number, Habi
 export interface BackendHabitCompletionCreatePayload {
     habit_id: number;
     slot_id: number;
-    completion_date: string; // ISO datetime string
+    completion_date: string; 
     is_completed: boolean;
 }
 
@@ -350,7 +348,7 @@ export interface BackendHabitCompletion {
     id: number;
     habit_id: number;
     slot_id: number;
-    completion_date: string; // ISO datetime string
+    completion_date: string; 
     is_completed: boolean;
 }
 
