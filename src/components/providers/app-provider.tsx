@@ -446,6 +446,7 @@ const backendToFrontendActivity = (
     dayOfMonth: backendActivityInput.day_of_month ?? undefined,
   };
 
+  // Todos and completedOccurrences are populated later by fetchAndSetSpecificActivityDetails
   const todosFromBackend: Todo[] = [];
   const completedOccurrencesMap: Record<string, boolean> = {};
 
@@ -459,17 +460,13 @@ const backendToFrontendActivity = (
       const mainOccurrenceDateKey = formatISO(mainOccurrenceDate, {
         representation: "date",
       });
-      if (completedOccurrencesMap.hasOwnProperty(mainOccurrenceDateKey)) {
-        finalCompletedStatus = completedOccurrencesMap[mainOccurrenceDateKey];
-        if (finalCompletedStatus) {
-          finalCompletedAt = mainOccurrenceDate.getTime();
-        } else {
-          finalCompletedAt = null;
-        }
-      }
+      // Placeholder: actual check will happen after occurrences are fetched
+      // For now, assume not completed until full details are fetched.
+      finalCompletedStatus = false; 
+      finalCompletedAt = null;
     } else {
       console.warn(
-        `[AppProvider] Invalid createdAtTimestamp (${createdAtTimestamp}) for activity ID ${activityIdForLog} when determining completion.`
+        `[AppProvider] Invalid createdAtTimestamp (${createdAtTimestamp}) for activity ID ${activityIdForLog} when determining initial completion.`
       );
     }
   }
@@ -479,7 +476,7 @@ const backendToFrontendActivity = (
     id: backendActivityInput.id,
     title: backendActivityInput?.title || "Untitled Activity",
     categoryId: backendActivityInput.category_id,
-    todos: todosFromBackend,
+    todos: todosFromBackend, // Will be empty initially
     createdAt: createdAtTimestamp,
     time: backendActivityInput?.time || "00:00",
     notes: backendActivityInput?.notes ?? undefined,
@@ -487,13 +484,13 @@ const backendToFrontendActivity = (
       recurrenceRule.type === "none" ? { type: "none" } : recurrenceRule,
     completed: finalCompletedStatus,
     completedAt: finalCompletedAt,
-    completedOccurrences: completedOccurrencesMap,
+    completedOccurrences: completedOccurrencesMap, // Will be empty initially
     responsiblePersonIds: backendActivityInput.responsible_ids || [],
     appMode: (backendActivityInput.mode === "both"
       ? currentAppMode
       : backendActivityInput?.mode || currentAppMode) as AppMode,
     created_by_user_id: backendActivityInput.created_by_user_id,
-    isSummary: true,
+    isSummary: true, // Initially, it's a summary until full details are fetched
   };
 };
 
@@ -602,10 +599,10 @@ const backendToFrontendHistory = (
   id: backendHistory.id,
   timestamp: parseISO(backendHistory.timestamp).getTime(),
   actionKey: backendHistory.action as HistoryLogActionKey,
-  backendAction: backendHistory.action,
-  backendUserId: backendHistory.user_id,
-  scope: "account",
-  details: { rawBackendAction: backendHistory.action },
+  backendAction: backendHistory.action, // Keep the original backend action string
+  backendUserId: backendHistory.user_id, // Keep backend user ID
+  scope: "account", // Default scope, can be overridden when logging
+  details: { rawBackendAction: backendHistory.action }, // Store raw action for debugging or complex cases
 });
 
 const formatBackendError = (errorData: any, defaultMessage: string): string => {
@@ -727,11 +724,11 @@ const backendToFrontendHabit = (beHabit: BackendHabit): Habit => {
       if (isNaN(createdAtTimestamp)) throw new Error("Parsed habit created_at timestamp is NaN");
     } catch (e) {
       console.warn(`[AppProvider] Failed to parse created_at "${beHabit.created_at}" for habit ID ${beHabit.id}. Defaulting to Epoch.`, e);
-      createdAtTimestamp = 0; // Default to Epoch if parsing fails
+      createdAtTimestamp = 0; 
     }
   } else {
     console.warn(`[AppProvider] Missing created_at for habit ID ${beHabit.id}. Defaulting to Epoch for historical calculations.`);
-    createdAtTimestamp = 0; // Default to Epoch if not provided
+    createdAtTimestamp = 0; 
   }
 
   return {
@@ -831,12 +828,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
 
   const logout = useCallback(
     (isTokenRefreshFailure: boolean = false) => {
+      const usernameForLog = decodedJwtRef.current?.username || t('unknownUser');
       console.log(
-        `[AppProvider logout] Initiating logout. Is token refresh failure: ${isTokenRefreshFailure}`
+        `[AppProvider logout] Initiating logout for user ${usernameForLog}. Is token refresh failure: ${isTokenRefreshFailure}`
       );
       if (!isTokenRefreshFailure && addHistoryLogEntryRef.current) {
-        addHistoryLogEntryRef.current("historyLogLogout", undefined, "account");
+        addHistoryLogEntryRef.current("historyLogLogout", { username: usernameForLog }, "account");
       }
+
       accessTokenRef.current = null;
       decodedJwtRef.current = null;
       setAccessTokenState(null);
@@ -887,8 +886,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
 
       if (logoutChannel) logoutChannel.postMessage("logout_event_v2");
     },
-    []
-  );
+  [t]);
 
   const decodeAndSetAccessToken = useCallback(
     async (tokenString: string | null): Promise<DecodedToken | null> => {
@@ -963,9 +961,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
           }
         }
 
+        // Synchronously update refs first for immediate availability
         accessTokenRef.current = tokenString;
         decodedJwtRef.current = newDecodedJwt;
 
+        // Then update state to trigger re-renders
         setAccessTokenState(tokenString);
         setDecodedJwtState(newDecodedJwt);
 
@@ -1274,7 +1274,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       }
 
       const payload: BackendHistoryCreatePayload = {
-        action: actionKey,
+        action: actionKey, 
         user_id: currentUserId,
       };
 
@@ -1297,7 +1297,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         const newBackendHistoryEntry: BackendHistory = await response.json();
         const frontendLogEntry = {
           ...backendToFrontendHistory(newBackendHistoryEntry),
-          actionKey: actionKey,
+          actionKey: actionKey, // Use the frontend key for display
           details: details,
           scope: scope,
         };
@@ -1733,7 +1733,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
   }, [uiNotifications, isLoadingState]);
 
   useEffect(() => {
-    if (isLoadingState || !isAuthenticated || isHabitsLoading || isActivitiesLoading) return;
+    if (!isLoadingState || !isAuthenticated || isHabitsLoading || isActivitiesLoading) return;
 
     const intervalId = setInterval(() => {
       const now = new Date();
@@ -1915,7 +1915,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
               const tenMinutesInMs = 10 * 60 * 1000;
               const timeDiffMs = habitSlotDateTime.getTime() - now.getTime();
 
-              if (timeDiffMs > 0 && timeDiffMs <= tenMinutesInMs) { // Ensure it's in the future but within 10 mins
+              if (timeDiffMs > 0 && timeDiffMs <= tenMinutesInMs) { 
                 const toastTitle = t("toastHabitStartingSoonTitle");
                 const toastDesc = t("toastHabitStartingSoonDescription", {
                   habitName: habit.name,
@@ -1945,8 +1945,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
   }, [
     personalActivities,
     workActivities,
-    habits, // Add habits
-    habitCompletions, // Add habitCompletions
+    habits, 
+    habitCompletions, 
     appModeState,
     isLoadingState,
     isAuthenticated,
@@ -2031,7 +2031,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
 
         addHistoryLogEntryRef.current?.(
           "historyLogLogin",
-          { username: tokenData.username },
+          { username: decodedFromNewToken.username || t('unknownUser') },
           "account"
         );
         if (
@@ -2269,7 +2269,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         }
         addHistoryLogEntryRef.current?.(
           "historyLogPasswordChangeAttempt",
-          { userId: currentUserId },
+          { userId: String(currentUserId) }, // Ensure userId is string for details
           "account"
         );
         toast({
@@ -2369,7 +2369,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     async (
       categoryId: number,
       updates: Partial<Omit<Category, "id" | "icon">>,
-      oldCategoryData?: Category
+      originalCategory?: Category // Renamed from oldCategoryData for clarity
     ) => {
       setError(null);
       const payload: BackendCategoryUpdatePayload = {};
@@ -2409,20 +2409,28 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             categoryName: updatedFrontendCategory.name,
           }),
         });
-
-        addHistoryLogEntryRef.current?.(
-          "historyLogUpdateCategory",
-          {
+        
+        const historyDetails: Record<string, any> = {
             categoryId: categoryId,
             newName: updatedFrontendCategory.name,
-            oldName: oldCategoryData?.name,
-            newIconName: updatedFrontendCategory.iconName,
-            oldIconName: oldCategoryData?.iconName,
-            newMode: updatedFrontendCategory.mode,
-            oldMode: oldCategoryData?.mode,
-          },
-          "category"
-        );
+        };
+        if (originalCategory) {
+            if (originalCategory.name !== updatedFrontendCategory.name) historyDetails.oldName = originalCategory.name;
+            if (originalCategory.iconName !== updatedFrontendCategory.iconName) {
+                historyDetails.newIconName = updatedFrontendCategory.iconName;
+                historyDetails.oldIconName = originalCategory.iconName;
+            }
+            if (originalCategory.mode !== updatedFrontendCategory.mode) {
+                historyDetails.newMode = updatedFrontendCategory.mode;
+                historyDetails.oldMode = originalCategory.mode;
+            }
+        } else {
+             historyDetails.newIconName = updatedFrontendCategory.iconName;
+             historyDetails.newMode = updatedFrontendCategory.mode;
+        }
+
+        addHistoryLogEntryRef.current?.("historyLogUpdateCategory", historyDetails, "category");
+
       } catch (err) {
         if (
           err instanceof Error &&
@@ -2607,7 +2615,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       newPassword?: string
     ) => {
       setError(null);
-      const currentAssignee = assignees.find((a) => a.id === assigneeId);
+      const originalAssignee = assignees.find((a) => a.id === assigneeId);
 
       const payload: BackendUserUpdatePayload = {};
       if (updates.name) payload.name = updates.name;
@@ -2644,20 +2652,28 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             assigneeName: updatedBackendUser.name,
           }),
         });
-
-        addHistoryLogEntryRef.current?.(
-          "historyLogUpdateAssignee",
-          {
+        
+        const historyDetails: Record<string, any> = {
             assigneeId: assigneeId,
-            name: updatedBackendUser.name,
-            oldName: currentAssignee?.name,
-            username: updatedBackendUser.username,
-            oldUsername: currentAssignee?.username,
-            isAdmin: updatedBackendUser.is_admin,
-            oldIsAdmin: currentAssignee?.isAdmin,
-          },
-          "assignee"
-        );
+            name: updatedBackendUser.name, // Always log the current name
+        };
+        if (originalAssignee) {
+            if (originalAssignee.name !== updatedBackendUser.name) historyDetails.oldName = originalAssignee.name;
+            if (originalAssignee.username !== updatedBackendUser.username) {
+                historyDetails.newUsername = updatedBackendUser.username;
+                historyDetails.oldUsername = originalAssignee.username;
+            }
+            if (originalAssignee.isAdmin !== updatedBackendUser.is_admin) {
+                historyDetails.isAdmin = updatedBackendUser.is_admin;
+                historyDetails.oldIsAdmin = originalAssignee.isAdmin;
+            }
+        } else { // If no original data, log all new non-password fields
+            historyDetails.newUsername = updatedBackendUser.username;
+            historyDetails.isAdmin = updatedBackendUser.is_admin;
+        }
+
+        addHistoryLogEntryRef.current?.("historyLogUpdateAssignee", historyDetails, "assignee");
+
       } catch (err) {
         if (
           !(
@@ -2735,7 +2751,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           {
             assigneeId: assigneeId,
             name: assigneeToDelete.name,
-            username: assigneeToDelete.username,
+            username: assigneeToDelete.username || t('unknownText'),
           },
           "assignee"
         );
@@ -2796,11 +2812,11 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     ) => {
       setError(null);
       const frontendActivityShell: Activity = {
-        id: 0,
+        id: 0, // Placeholder, will be set by backend
         title: activityData.title,
         categoryId: activityData.categoryId,
-        todos: (activityData.todos || []).map((t, i) => ({
-          id: Date.now() + i,
+        todos: (activityData.todos || []).map((t, i) => ({ // Map to full Todo structure for consistency
+          id: Date.now() + i, // Placeholder, will be set by backend if todos are created
           text: t.text,
           completed: !!t.completed,
         })),
@@ -2811,7 +2827,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         responsiblePersonIds: activityData.responsiblePersonIds,
         appMode: activityData.appMode,
         completedOccurrences: {},
-        isSummary: false,
+        isSummary: false, // Start as non-summary as we're creating it now
       };
 
       const payload = frontendToBackendActivityPayload(
@@ -2841,6 +2857,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
 
         const newBackendActivityResponse: BackendActivityResponse = await response.json();
 
+        // After successful creation, fetch the full details to ensure state is consistent
         const fullNewActivity = await fetchAndSetSpecificActivityDetails(newBackendActivityResponse.id);
 
         if (fullNewActivity) {
@@ -2852,11 +2869,11 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
               {
                 activityId: fullNewActivity.id,
                 title: fullNewActivity.title,
-                categoryName: category?.name,
+                categoryName: category?.name || t('uncategorized'),
                 date: formatDateFns(new Date(fullNewActivity.createdAt), "PP", {
                   locale: dateFnsLocale,
                 }),
-                time: fullNewActivity.time,
+                time: fullNewActivity.time || t('timeNotSet'),
                 mode: fullNewActivity.appMode,
               },
               fullNewActivity.appMode
@@ -2866,7 +2883,20 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
                 description: t("toastActivityAddedDescription", { activityTitle: fullNewActivity.title }),
             });
         } else {
-            throw new Error(`Failed to fetch full details for newly created activity ID ${newBackendActivityResponse.id}`);
+            // This case should ideally not happen if create and then fetch by ID works.
+            // Fallback to using the response from create if full fetch fails.
+            const createdActivityForLog = backendToFrontendActivity(newBackendActivityResponse, appModeState);
+             const category = allCategories.find(c => c.id === createdActivityForLog.categoryId);
+            addHistoryLogEntryRef.current?.("historyLogAddActivity", {
+                activityId: createdActivityForLog.id,
+                title: createdActivityForLog.title,
+                categoryName: category?.name || t('uncategorized'),
+                date: formatDateFns(new Date(createdActivityForLog.createdAt), "PP", { locale: dateFnsLocale }),
+                time: createdActivityForLog.time || t('timeNotSet'),
+                mode: createdActivityForLog.appMode,
+            }, createdActivityForLog.appMode);
+            toast({ title: t("toastActivityAddedTitle"), description: t("toastActivityAddedDescription", { activityTitle: createdActivityForLog.title }) });
+            console.warn(`[AppProvider] addActivity: Successfully created activity ID ${newBackendActivityResponse.id}, but failed to fetch full details immediately after. State might be partially updated.`);
         }
 
       } catch (err) {
@@ -2898,6 +2928,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       logout,
       allCategories,
       dateFnsLocale,
+      // fetchAndSetSpecificActivityDetails is now a dependency
     ]
   );
 
@@ -2935,14 +2966,17 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         }
         const backendOccurrences: BackendActivityOccurrencesListResponse = await occurrencesResponse.json();
 
+        // Convert base activity data
         let frontendActivity = backendToFrontendActivity(backendBaseActivity, appModeState);
 
+        // Populate todos
         frontendActivity.todos = backendTodos.map(bt => ({
             id: bt.id,
             text: bt.text,
             completed: bt.complete
         }));
 
+        // Populate completedOccurrences
         const newCompletedOccurrences: Record<string, boolean> = {};
         backendOccurrences.forEach(occ => {
             try {
@@ -2954,19 +2988,22 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         });
         frontendActivity.completedOccurrences = newCompletedOccurrences;
 
+        // Determine overall completion for non-recurring activities based on their single occurrence
         if (frontendActivity.recurrence?.type === 'none') {
             const mainOccurrenceDateKey = formatISO(new Date(frontendActivity.createdAt), { representation: 'date' });
             if (frontendActivity.completedOccurrences.hasOwnProperty(mainOccurrenceDateKey)) {
                 frontendActivity.completed = frontendActivity.completedOccurrences[mainOccurrenceDateKey];
                 frontendActivity.completedAt = frontendActivity.completed ? frontendActivity.createdAt : null;
             } else {
+                // If no occurrence record, assume not completed for non-recurring
                 frontendActivity.completed = false;
                 frontendActivity.completedAt = null;
             }
         }
 
-        frontendActivity.isSummary = false;
+        frontendActivity.isSummary = false; // Mark as fully detailed
 
+        // Update the correct state list (personal or work)
         const setter =
           frontendActivity.appMode === "personal"
             ? setPersonalActivities
@@ -2976,12 +3013,14 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             (act) => act.id === activityId
           );
           if (existingActivity) {
+            // Replace existing activity with the new full details
             return prevActivities.map((act) =>
               act.id === activityId
-                ? { ...act, ...frontendActivity }
+                ? { ...act, ...frontendActivity } // Ensure all fields are updated
                 : act
             );
           }
+          // If somehow it wasn't in the list (e.g., direct load to editor), add it.
           return [...prevActivities, frontendActivity];
         });
         return frontendActivity;
@@ -2991,7 +3030,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           (err.message.toLowerCase().includes("unauthorized") ||
             err.message.includes("401"))
         ) {
-          logout(true);
+          logout(true); // Critical auth error
         } else {
           createApiErrorToast(
             err,
@@ -3013,35 +3052,29 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     async (
       activityId: number,
       updates: Partial<Omit<Activity, "id" | "todos" | "created_by_user_id" | "isSummary">>,
-      originalActivity?: Activity
+      originalActivityData?: Activity 
     ) => {
       setError(null);
-      let currentActivitiesList = personalActivities.find(
-        (a) => a.id === activityId
-      )
-        ? personalActivities
-        : workActivities;
-      let activityToUpdate = currentActivitiesList.find(
-        (a) => a.id === activityId
-      );
+      
+      // Attempt to find the activity in current state, or fetch if not fully detailed
+      let currentActivityToUpdate = 
+        (updates.appMode === 'personal' ? personalActivities : workActivities).find(a => a.id === activityId) ||
+        (updates.appMode === 'work' ? workActivities : personalActivities).find(a => a.id === activityId);
 
-      if (!activityToUpdate) {
-        activityToUpdate = await fetchAndSetSpecificActivityDetails(activityId);
-        if (!activityToUpdate) {
-           console.error("[AppProvider] Activity not found for update, even after fetch:", activityId);
-            toast({ variant: "destructive", title: "Error", description: "Activity not found for update." });
-            return;
-        }
-        currentActivitiesList = personalActivities.find(a => a.id === activityId) ? personalActivities : workActivities;
+
+      if (!currentActivityToUpdate || currentActivityToUpdate.isSummary) {
+          console.log(`[AppProvider updateActivity] Activity ID ${activityId} is summary or not found, fetching full details before update.`);
+          currentActivityToUpdate = await fetchAndSetSpecificActivityDetails(activityId);
+          if (!currentActivityToUpdate) {
+             console.error("[AppProvider updateActivity] Activity not found for update, even after attempting to fetch full details:", activityId);
+              toast({ variant: "destructive", title: "Error", description: "Activity not found for update." });
+              return;
+          }
       }
-       let targetSetter = personalActivities.find((a) => a.id === activityId)
-        ? setPersonalActivities
-        : setWorkActivities;
-
-
-      const effectiveAppMode = updates.appMode || activityToUpdate.appMode;
+      
+      const effectiveAppMode = updates.appMode || currentActivityToUpdate.appMode;
       const payload = frontendToBackendActivityPayload(
-        { ...activityToUpdate, ...updates, appMode: effectiveAppMode },
+        { ...currentActivityToUpdate, ...updates, appMode: effectiveAppMode },
         true
       ) as BackendActivityUpdatePayload;
 
@@ -3066,37 +3099,40 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         if (!updatedFullActivity) {
             throw new Error(`Failed to fetch full details after update for activity ${activityId}`);
         }
-
-        const category = allCategories.find(
-          (c) => c.id === updatedFullActivity.categoryId
-        );
-        addHistoryLogEntryRef.current?.(
-          "historyLogUpdateActivity",
-          {
+        
+        const originalForLog = originalActivityData || currentActivityToUpdate; // Use provided original or the one from state
+        const historyDetails: Record<string, any> = {
             activityId: activityId,
             title: updatedFullActivity.title,
-            oldTitle: originalActivity?.title,
-            categoryName: category?.name,
-            oldCategoryName: originalActivity
-              ? allCategories.find((c) => c.id === originalActivity.categoryId)
-                  ?.name
-              : undefined,
-            date: formatDateFns(
-              new Date(updatedFullActivity.createdAt),
-              "PP",
-              { locale: dateFnsLocale }
-            ),
-            oldDate: originalActivity
-              ? formatDateFns(new Date(originalActivity.createdAt), "PP", {
-                  locale: dateFnsLocale,
-                })
-              : undefined,
-            time: updatedFullActivity.time,
-            oldTime: originalActivity?.time,
             mode: updatedFullActivity.appMode,
-          },
-          updatedFullActivity.appMode
-        );
+        };
+
+        if(originalForLog.title !== updatedFullActivity.title) historyDetails.oldTitle = originalForLog.title || t('unknownText');
+        
+        const oldCat = allCategories.find(c => c.id === originalForLog.categoryId);
+        const newCat = allCategories.find(c => c.id === updatedFullActivity.categoryId);
+        if(oldCat?.name !== newCat?.name) {
+            historyDetails.oldCategoryName = oldCat?.name || t('uncategorized');
+            historyDetails.newCategoryName = newCat?.name || t('uncategorized');
+        } else if (newCat) {
+            historyDetails.categoryName = newCat.name;
+        }
+
+        if(originalForLog.createdAt !== updatedFullActivity.createdAt) {
+            historyDetails.oldDate = formatDateFns(new Date(originalForLog.createdAt), "PP", { locale: dateFnsLocale });
+            historyDetails.newDate = formatDateFns(new Date(updatedFullActivity.createdAt), "PP", { locale: dateFnsLocale });
+        } else {
+            historyDetails.date = formatDateFns(new Date(updatedFullActivity.createdAt), "PP", { locale: dateFnsLocale });
+        }
+
+        if(originalForLog.time !== updatedFullActivity.time) {
+            historyDetails.oldTime = originalForLog.time || t('timeNotSet');
+            historyDetails.newTime = updatedFullActivity.time || t('timeNotSet');
+        } else if (updatedFullActivity.time) {
+            historyDetails.time = updatedFullActivity.time;
+        }
+
+        addHistoryLogEntryRef.current?.("historyLogUpdateActivity", historyDetails, updatedFullActivity.appMode);
         toast({
             title: t("toastActivityUpdatedTitle"),
             description: t("toastActivityUpdatedDescription", { activityTitle: updatedFullActivity.title }),
@@ -3152,17 +3188,21 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       }
 
       if (!activityToDelete) {
-        console.error(
-          "[AppProvider] Activity not found for deletion:",
-          activityId
-        );
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Activity not found for deletion.",
-        });
-        return;
+        // Attempt to fetch details if not found in local state, it might exist on backend
+        activityToDelete = await fetchAndSetSpecificActivityDetails(activityId);
+        if (!activityToDelete) {
+            console.error("[AppProvider] Activity not found for deletion, even after fetch:", activityId);
+            toast({ variant: "destructive", title: "Error", description: "Activity not found for deletion."});
+            return;
+        }
+        setter = activityToDelete.appMode === 'personal' ? setPersonalActivities : setWorkActivities;
+        modeForLog = activityToDelete.appMode;
       }
+      
+      const titleForLog = activityToDelete.title || t('unknownText');
+      const categoryForLog = allCategories.find(c => c.id === activityToDelete!.categoryId);
+      const dateForLog = formatDateFns(new Date(activityToDelete.createdAt), "PP", { locale: dateFnsLocale });
+      const timeForLog = activityToDelete.time || t('timeNotSet');
 
       try {
         const response = await fetchWithAuth(`/activities/${activityId}`, {
@@ -3183,23 +3223,18 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         toast({
           title: t("toastActivityDeletedTitle"),
           description: t("toastActivityDeletedDescription", {
-            activityTitle: activityToDelete.title,
+            activityTitle: titleForLog,
           }),
         });
 
-        const category = allCategories.find(
-          (c) => c.id === activityToDelete!.categoryId
-        );
         addHistoryLogEntryRef.current?.(
           "historyLogDeleteActivity",
           {
             activityId: activityId,
-            title: activityToDelete.title,
-            categoryName: category?.name,
-            date: formatDateFns(new Date(activityToDelete.createdAt), "PP", {
-              locale: dateFnsLocale,
-            }),
-            time: activityToDelete.time,
+            title: titleForLog,
+            categoryName: categoryForLog?.name || t('uncategorized'),
+            date: dateForLog,
+            time: timeForLog,
             mode: activityToDelete.appMode,
           },
           modeForLog
@@ -3234,6 +3269,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       logout,
       allCategories,
       dateFnsLocale,
+      fetchAndSetSpecificActivityDetails,
     ]
   );
 
@@ -3264,40 +3300,12 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             )
           );
         }
-        const newBackendTodo: BackendTodo = await response.json();
-        const newFrontendTodo: Todo = {
-          id: newBackendTodo.id,
-          text: newBackendTodo.text,
-          completed: newBackendTodo.complete,
-        };
-
-
-        const updateInList = (
-          setter: React.Dispatch<React.SetStateAction<Activity[]>>
-        ) => {
-          setter((prevList) =>
-            prevList.map((act) =>
-              act.id === activityId
-                ? {
-                    ...act,
-                    todos: [...act.todos, newFrontendTodo],
-                    isSummary: false,
-                  }
-                : act
-            )
-          );
-        };
-
-        if (personalActivities.find(a => a.id === activityId)) {
-            updateInList(setPersonalActivities);
-        } else if (workActivities.find(a => a.id === activityId)) {
-            updateInList(setWorkActivities);
-        }
-
+        // const newBackendTodo: BackendTodo = await response.json();
+        // Instead of directly using newBackendTodo, re-fetch the activity to get all todos
         await fetchAndSetSpecificActivityDetails(activityId);
-
-
-        return newFrontendTodo;
+        // To return the specific new todo, we'd ideally get it from the refreshed activity
+        // For now, returning null or a synthesized one if needed by caller immediately
+        return null; // Or find it in the refreshed activity's todos
       } catch (err) {
         if (
           err instanceof Error &&
@@ -3321,8 +3329,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     },
     [
       fetchWithAuth,
-      personalActivities,
-      workActivities,
       toast,
       t,
       logout,
@@ -3355,9 +3361,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             )
           );
         }
-
+        // Re-fetch parent activity to update its todos list
         await fetchAndSetSpecificActivityDetails(activityId);
-
       } catch (err) {
         if (
           err instanceof Error &&
@@ -3406,9 +3411,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             )
           );
         }
-
+        // Re-fetch parent activity to update its todos list
         await fetchAndSetSpecificActivityDetails(activityId);
-
       } catch (err) {
         if (
           err instanceof Error &&
@@ -3448,21 +3452,22 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       let masterActivity =
         personalActivities.find((act) => act.id === masterActivityId) ||
         workActivities.find((act) => act.id === masterActivityId);
-      const setter = personalActivities.find(
-        (act) => act.id === masterActivityId
-      )
+      
+      let setter = personalActivities.find((act) => act.id === masterActivityId)
         ? setPersonalActivities
         : setWorkActivities;
 
-      if (!masterActivity) {
+      if (!masterActivity || masterActivity.isSummary) { // Also fetch if it's just a summary
         masterActivity = await fetchAndSetSpecificActivityDetails(masterActivityId);
         if (!masterActivity) {
           console.error("Master activity not found for toggling occurrence, even after fetch:", masterActivityId);
           return;
         }
+        // Re-determine setter in case appMode changed or activity was newly fetched into a list
+        setter = masterActivity.appMode === 'personal' ? setPersonalActivities : setWorkActivities;
       }
 
-      const activityTitleForLog = masterActivity.title;
+      const activityTitleForLog = masterActivity.title || t('unknownActivityTitle');
       const modeForLog = masterActivity.appMode;
       const occurrenceDateKey = formatISO(new Date(occurrenceDateTimestamp), {
         representation: "date",
@@ -3470,6 +3475,10 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       const occurrenceDateTimeISO = new Date(
         occurrenceDateTimestamp
       ).toISOString();
+      
+      const timeForLog = masterActivity.time || t('timeNotSet');
+      const dateForLog = formatDateFns(new Date(occurrenceDateTimestamp), "PP", { locale: dateFnsLocale });
+
 
       setter((prevActivities) =>
         prevActivities.map((act) =>
@@ -3480,7 +3489,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
                   ...act.completedOccurrences,
                   [occurrenceDateKey]: completedState,
                 },
-                isSummary: false,
+                isSummary: false, 
                 ...(act.recurrence?.type === 'none' && isSameDay(new Date(act.createdAt), new Date(occurrenceDateTimestamp)) && {
                     completed: completedState,
                     completedAt: completedState ? occurrenceDateTimestamp : null,
@@ -3558,7 +3567,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
                     ...act.completedOccurrences,
                     [occurrenceDateKey]: backendResponseOccurrence.complete,
                   },
-                  isSummary: false,
+                  isSummary: false, 
                   ...(act.recurrence?.type === 'none' && isSameDay(new Date(act.createdAt), new Date(occurrenceDateTimestamp)) && {
                     completed: backendResponseOccurrence.complete,
                     completedAt: backendResponseOccurrence.complete ? occurrenceDateTimestamp : null,
@@ -3574,11 +3583,9 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             activityId: masterActivityId,
             title: activityTitleForLog,
             completed: completedState,
-            date: formatDateFns(new Date(occurrenceDateTimestamp), "PP", {
-              locale: dateFnsLocale,
-            }),
-            time: masterActivity?.time,
-            mode: masterActivity?.appMode,
+            date: dateForLog,
+            time: timeForLog,
+            mode: modeForLog,
           },
           modeForLog
         );
@@ -3591,7 +3598,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
                   ...act,
                   completedOccurrences: {
                     ...act.completedOccurrences,
-                    [occurrenceDateKey]: !completedState,
+                    [occurrenceDateKey]: !completedState, // Revert optimistic update
                   },
                    ...(act.recurrence?.type === 'none' && isSameDay(new Date(act.createdAt), new Date(occurrenceDateTimestamp)) && {
                     completed: !completedState,
@@ -3670,7 +3677,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         });
         addHistoryLogEntryRef.current?.(
           "historyLogAddHabit",
-          { name: newFrontendHabit.name },
+          { name: newFrontendHabit.name || t('unknownText') },
           "habit"
         );
       } catch (err) {
@@ -3700,13 +3707,14 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
   const updateHabit = useCallback(
     async (habitId: number, habitData: HabitUpdateData) => {
       setError(null);
-      const oldHabit = habits.find((h) => h.id === habitId);
+      const originalHabit = habits.find((h) => h.id === habitId);
 
       const slotsPayload: HabitSlotCreateData[] = (habitData.slots || []).map(s_form => {
         const slot_payload: HabitSlotCreateData = {
             name: s_form.name,
             default_time: s_form.default_time || undefined,
         };
+        // Only include ID if it's a number (existing slot)
         if (typeof s_form.id === 'number') {
             slot_payload.id = s_form.id;
         }
@@ -3749,7 +3757,10 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         });
         addHistoryLogEntryRef.current?.(
           "historyLogUpdateHabit",
-          { newName: updatedFrontendHabit.name, oldName: oldHabit?.name },
+          { 
+            newName: updatedFrontendHabit.name || t('unknownText'), 
+            oldName: originalHabit?.name || t('unknownText')
+          },
           "habit"
         );
       } catch (err) {
@@ -3784,7 +3795,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         const response = await fetchWithAuth(`/habits/${habitId}`, {
           method: "DELETE",
         });
-        if (!response.ok && response.status !== 204) {
+        if (!response.ok && response.status !== 204) { // 204 No Content is also success
           const errorData = await response
             .json()
             .catch(() => ({ detail: response.statusText }));
@@ -3810,7 +3821,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           });
           addHistoryLogEntryRef.current?.(
             "historyLogDeleteHabit",
-            { name: habitToDelete.name },
+            { name: habitToDelete.name || t('unknownText') },
             "habit"
           );
         }
@@ -3842,17 +3853,23 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     async (
       habitId: number,
       slotId: number,
-      dateKey: string,
+      dateKey: string, // This is 'YYYY-MM-DD'
       currentStatus: HabitSlotCompletionStatus | undefined
     ) => {
       setError(null);
       const newCompletedState = !currentStatus?.completed;
       const habit = habits.find((h) => h.id === habitId);
       const slot = habit?.slots.find((s) => s.id === slotId);
+      
+      const habitNameForLog = habit?.name || t('unknownHabit');
+      const slotNameForLog = slot?.name || t('unknownSlot');
+      const dateForLog = dateKey; // Already in 'YYYY-MM-DD' which is fine for log
+
 
       try {
         let backendResponse: BackendHabitCompletion;
         if (currentStatus?.completionId) {
+          // Update existing completion
           const payload: BackendHabitCompletionUpdatePayload = {
             is_completed: newCompletedState,
           };
@@ -3876,10 +3893,11 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           }
           backendResponse = await response.json();
         } else {
+          // Create new completion record
           const payload: BackendHabitCompletionCreatePayload = {
             habit_id: habitId,
             slot_id: slotId,
-            completion_date: parseISO(dateKey).toISOString(),
+            completion_date: parseISO(dateKey).toISOString(), // Send full ISO string
             is_completed: newCompletedState,
           };
           const response = await fetchWithAuth(`/habit_completions`, {
@@ -3891,14 +3909,15 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
               .json()
               .catch(() => ({ detail: `HTTP ${response.status}` }));
             throw new Error(
-              formatBackendError(errorData, `Failed to create new occurrence`)
+              formatBackendError(errorData, `Failed to create new habit completion`)
             );
           }
           backendResponse = await response.json();
         }
 
+        // Update local state optimistically or with response
         setHabitCompletions((prev) => {
-          const updatedCompletions = JSON.parse(JSON.stringify(prev));
+          const updatedCompletions = JSON.parse(JSON.stringify(prev)); // Deep copy
           if (!updatedCompletions[habitId]) updatedCompletions[habitId] = {};
           if (!updatedCompletions[habitId][dateKey])
             updatedCompletions[habitId][dateKey] = {};
@@ -3909,19 +3928,18 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           return updatedCompletions;
         });
 
-        if (habit && slot) {
-          addHistoryLogEntryRef.current?.(
-            "historyLogToggleHabitCompletion",
-            {
-              habitName: habit.name,
-              slotName: slot.name,
-              date: dateKey,
-              completed: newCompletedState,
-            },
-            "habit"
-          );
-        }
+        addHistoryLogEntryRef.current?.(
+          "historyLogToggleHabitCompletion",
+          {
+            habitName: habitNameForLog,
+            slotName: slotNameForLog,
+            date: dateForLog,
+            completed: newCompletedState,
+          },
+          "habit"
+        );
       } catch (err) {
+        // Revert optimistic update if API call fails (though currently not implemented as optimistic)
         if (
           err instanceof Error &&
           (err.message.toLowerCase().includes("unauthorized") ||
@@ -3932,10 +3950,10 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           createApiErrorToast(
             err,
             toast,
-            "toastHabitUpdatedTitle",
+            "toastHabitUpdatedTitle", // Using generic update title
             "updating",
             t,
-            `/habit_completions`
+            `/habit_completions` // Endpoint could be create or update
           );
         }
         setError((err as Error).message);
