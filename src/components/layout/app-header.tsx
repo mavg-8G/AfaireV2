@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Layers, Languages, Sun, Moon, Laptop, User, Briefcase, LogOut, KeyRound, LayoutDashboard, Bell, CheckCircle, Trash, MoreHorizontal, History as HistoryIcon, Settings, MoreVertical, BellRing, BellOff, BellPlus, Users, Brain } from 'lucide-react'; // Added Smile
+import { Layers, Languages, Sun, Moon, Laptop, User, Briefcase, LogOut, KeyRound, LayoutDashboard, Bell, CheckCircle, Trash, MoreHorizontal, History as HistoryIcon, Settings, MoreVertical, BellRing, BellOff, BellPlus, Users, Brain, Globe } from 'lucide-react'; // Added Globe
 import { LogoIcon } from '@/components/icons/logo-icon';
 import { APP_NAME } from '@/lib/constants';
 import dynamic from 'next/dynamic';
@@ -16,6 +16,11 @@ import {
   DropdownMenuTrigger,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -45,8 +50,21 @@ export default function AppHeader() {
     clearAllUINotifications,
     systemNotificationPermission,
     requestSystemNotificationPermission,
+    selectedTimezone, 
+    setSelectedTimezone,
   } = useAppStore();
   const router = useRouter();
+  const [availableTimezones, setAvailableTimezones] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+        setAvailableTimezones(Intl.supportedValuesOf('timeZone'));
+    } catch (e) {
+        console.warn("Intl.supportedValuesOf('timeZone') is not available, timezone selection will be limited.", e);
+        setAvailableTimezones(['UTC', 'America/New_York', 'Europe/London', 'Asia/Tokyo']); // Basic fallback
+    }
+  }, []);
+
 
   const dateLocale = useMemo(() => {
     if (locale === 'es') return es;
@@ -116,7 +134,7 @@ export default function AppHeader() {
       <DropdownMenuSeparator />
       {sortedNotifications.length > 0 ? (
         <>
-          <ScrollArea className="flex-grow overflow-y-auto pr-1">
+          <ScrollArea className="flex-grow overflow-y-auto pr-1 max-h-[calc(70vh-100px)]">
             {sortedNotifications.map(notification => (
               <DropdownMenuItem
                 key={notification.id}
@@ -197,6 +215,22 @@ export default function AppHeader() {
       )}
       <DropdownMenuSeparator />
       {systemNotificationMenuItem()}
+      <DropdownMenuSeparator />
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>
+          <Globe className="mr-2 h-4 w-4" />
+          {t('timezoneSettingTitle')}
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="max-h-72 overflow-y-auto">
+            <DropdownMenuLabel>{t('currentTimezoneLabel', {tz: selectedTimezone})}</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={selectedTimezone} onValueChange={setSelectedTimezone}>
+                <DropdownMenuRadioItem value="system">{t('useSystemTimezone')}</DropdownMenuRadioItem>
+                {availableTimezones.map(tz => (
+                    <DropdownMenuRadioItem key={tz} value={tz}>{tz.replace(/_/g, ' ')}</DropdownMenuRadioItem>
+                ))}
+            </DropdownMenuRadioGroup>
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
       <DropdownMenuSeparator />
       <DropdownMenuLabel>{t('theme')}</DropdownMenuLabel>
       <DropdownMenuItem onClick={() => setTheme('light')} disabled={theme === 'light'}>
@@ -344,3 +378,4 @@ export default function AppHeader() {
     </>
   );
 }
+

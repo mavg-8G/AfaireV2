@@ -38,6 +38,10 @@ export type Translations = {
   systemNotificationsNotYetEnabled: string;
   systemNotificationsDismissed: string;
   manageAssignees: string;
+  timezoneSettingTitle: string;
+  currentTimezoneLabel: (params: { tz: string }) => string;
+  useSystemTimezone: string;
+
 
   // CategoriesPage
   backToCalendar: string;
@@ -327,16 +331,11 @@ export type Translations = {
   historyLogAddAssignee: (params: { assigneeId: number, name: string, username: string, isAdmin: boolean }) => string;
   historyLogUpdateAssignee: (params: { assigneeId: number, name: string, changesSummary: string }) => string;
   historyLogDeleteAssignee: (params: { assigneeId: number, name: string, username: string }) => string;
-  historyScopeAccount: string;
-  historyScopePersonal: string;
-  historyScopeWork: string;
-  historyScopeCategory: string;
-  historyScopeAssignee: string;
-  historyScopeHabit: string;
   historyLogAddHabit: (params: { name: string }) => string;
   historyLogUpdateHabit: (params: { habitId: number, name: string, changesSummary: string }) => string;
   historyLogDeleteHabit: (params: { name: string }) => string;
   historyLogToggleHabitCompletion: (params: { habitName: string, slotName: string, date: string, completed: boolean }) => string;
+  historyLogTimezoneChange: (params: { oldTimezone: string, newTimezone: string }) => string;
   unknownUser: string;
   unknownText: string;
   unknownActivityTitle: string;
@@ -443,6 +442,9 @@ export const translations: Record<Locale, Translations> = {
     systemNotificationsNotYetEnabled: "System notifications not yet enabled.",
     systemNotificationsDismissed: "You can enable notifications later from the options menu.",
     manageAssignees: "Manage Assignees",
+    timezoneSettingTitle: "Timezone",
+    currentTimezoneLabel: (params) => `Timezone: ${params.tz}`,
+    useSystemTimezone: "Use System Default",
     backToCalendar: "Back to Calendar",
     addCategory: "Add Category",
     editCategory: "Edit Category",
@@ -694,27 +696,22 @@ export const translations: Record<Locale, Translations> = {
     historyLogLogin: (params) => `User "${params.username}" logged in.`,
     historyLogLogout: (params) => `User "${params.username}" logged out.`,
     historyLogAddActivity: (params) => `Added ${params.mode} Activity: "${params.title}" (Category: ${params.categoryName}) for ${params.date} at ${params.time}. (ID: ${params.activityId})`,
-    historyLogUpdateActivity: (params) => `Updated ${params.mode} Activity "${params.title}" (ID: ${params.activityId}). ${params.changesSummary}`,
+    historyLogUpdateActivity: (params) => `Updated ${params.mode} Activity "${params.title}" (ID: ${params.activityId}). Changes: ${params.changesSummary}.`,
     historyLogDeleteActivity: (params) => `Deleted ${params.mode} Activity: "${params.title}" (Category: ${params.categoryName}) for ${params.date} at ${params.time}. (ID: ${params.activityId})`,
     historyLogToggleActivityCompletion: (params) => `Marked ${params.mode} Activity "${params.title}" (ID: ${params.activityId}) for ${params.date} at ${params.time} as ${params.completed ? 'completed' : 'incomplete'}.`,
     historyLogAddCategory: (params) => `Added Category: "${params.name}" (Icon: ${params.iconName}, Mode: ${params.mode}). (ID: ${params.categoryId})`,
-    historyLogUpdateCategory: (params) => `Updated Category "${params.name}" (ID: ${params.categoryId}). ${params.changesSummary}`,
+    historyLogUpdateCategory: (params) => `Updated Category "${params.name}" (ID: ${params.categoryId}). Changes: ${params.changesSummary}.`,
     historyLogDeleteCategory: (params) => `Deleted Category: "${params.name}" (Icon: ${params.iconName}, Mode: ${params.mode}). (ID: ${params.categoryId})`,
     historyLogSwitchMode: (params) => `Switched mode from ${params.oldMode} to ${params.newMode}.`,
     historyLogPasswordChangeAttempt: (params) => `Password change attempt for user ID: ${params.userId}.`,
     historyLogAddAssignee: (params) => `Added Assignee: "${params.name}" (Username: ${params.username}, Admin: ${params.isAdmin ? 'Yes' : 'No'}). (ID: ${params.assigneeId})`,
-    historyLogUpdateAssignee: (params) => `Updated Assignee "${params.name}" (ID: ${params.assigneeId}). ${params.changesSummary}`,
+    historyLogUpdateAssignee: (params) => `Updated Assignee "${params.name}" (ID: ${params.assigneeId}). Changes: ${params.changesSummary}.`,
     historyLogDeleteAssignee: (params) => `Deleted Assignee: "${params.name}" (Username: ${params.username}). (ID: ${params.assigneeId})`,
-    historyScopeAccount: "Account",
-    historyScopePersonal: "Personal",
-    historyScopeWork: "Work",
-    historyScopeCategory: "Category",
-    historyScopeAssignee: "Assignee",
-    historyScopeHabit: "Habit",
     historyLogAddHabit: (params) => `Added Habit: "${params.name}".`,
-    historyLogUpdateHabit: (params) => `Updated Habit "${params.name}" (ID: ${params.habitId}). ${params.changesSummary}`,
+    historyLogUpdateHabit: (params) => `Updated Habit "${params.name}" (ID: ${params.habitId}). Changes: ${params.changesSummary}.`,
     historyLogDeleteHabit: (params) => `Deleted Habit: "${params.name}".`,
     historyLogToggleHabitCompletion: (params) => `Habit "${params.habitName}", Slot "${params.slotName}" on ${params.date} marked as ${params.completed ? 'completed' : 'incomplete'}.`,
+    historyLogTimezoneChange: (params) => `Timezone changed from ${params.oldTimezone} to ${params.newTimezone}.`,
     unknownUser: "Unknown User",
     unknownText: "N/A",
     unknownActivityTitle: "Unnamed Activity",
@@ -724,7 +721,7 @@ export const translations: Record<Locale, Translations> = {
     timeNotSet: "Time not set",
     uncategorized: "Uncategorized",
     notSetValuePlaceholder: "Not set",
-    noDetailedChangesLogged: "Details verified, no specific field changes.",
+    noDetailedChangesLogged: "Details verified; no specific field changes.",
     fieldChangeDetail: (params) => `${params.field} changed from "${params.from}" to "${params.to}"`,
     fieldSetToDetail: (params) => `${params.field} set to "${params.value}"`,
     titleLabel: "Title",
@@ -821,6 +818,9 @@ export const translations: Record<Locale, Translations> = {
     systemNotificationsNotYetEnabled: "Notificaciones del sistema aún no activadas.",
     systemNotificationsDismissed: "Puedes activar las notificaciones más tarde desde el menú de opciones.",
     manageAssignees: "Gestionar Asignados",
+    timezoneSettingTitle: "Zona Horaria",
+    currentTimezoneLabel: (params) => `Zona Horaria: ${params.tz}`,
+    useSystemTimezone: "Usar Predeterminada del Sistema",
     backToCalendar: "Volver al Calendario",
     addCategory: "Añadir Categoría",
     editCategory: "Editar Categoría",
@@ -1072,27 +1072,22 @@ export const translations: Record<Locale, Translations> = {
     historyLogLogin: (params) => `Usuario "${params.username}" inició sesión.`,
     historyLogLogout: (params) => `Usuario "${params.username}" cerró sesión.`,
     historyLogAddActivity: (params) => `Añadida Actividad (${params.mode}): "${params.title}" (Categoría: ${params.categoryName}) para ${params.date} a las ${params.time}. (ID: ${params.activityId})`,
-    historyLogUpdateActivity: (params) => `Actualizada Actividad (${params.mode}) "${params.title}" (ID: ${params.activityId}). ${params.changesSummary}`,
+    historyLogUpdateActivity: (params) => `Actualizada Actividad (${params.mode}) "${params.title}" (ID: ${params.activityId}). Cambios: ${params.changesSummary}.`,
     historyLogDeleteActivity: (params) => `Eliminada Actividad (${params.mode}): "${params.title}" (Categoría: ${params.categoryName}) para ${params.date} a las ${params.time}. (ID: ${params.activityId})`,
     historyLogToggleActivityCompletion: (params) => `Marcada Actividad (${params.mode}) "${params.title}" (ID: ${params.activityId}) para ${params.date} a las ${params.time} como ${params.completed ? 'completada' : 'incompleta'}.`,
     historyLogAddCategory: (params) => `Añadida Categoría: "${params.name}" (Icono: ${params.iconName}, Modo: ${params.mode}). (ID: ${params.categoryId})`,
-    historyLogUpdateCategory: (params) => `Actualizada Categoría "${params.name}" (ID: ${params.categoryId}). ${params.changesSummary}`,
+    historyLogUpdateCategory: (params) => `Actualizada Categoría "${params.name}" (ID: ${params.categoryId}). Cambios: ${params.changesSummary}.`,
     historyLogDeleteCategory: (params) => `Eliminada Categoría: "${params.name}" (Icono: ${params.iconName}, Modo: ${params.mode}). (ID: ${params.categoryId})`,
     historyLogSwitchMode: (params) => `Cambiado modo de ${params.oldMode} a ${params.newMode}.`,
     historyLogPasswordChangeAttempt: (params) => `Intento de cambio de contraseña para usuario ID: ${params.userId}.`,
     historyLogAddAssignee: (params) => `Asignado añadido: "${params.name}" (Usuario: ${params.username}, Admin: ${params.isAdmin ? 'Sí' : 'No'}). (ID: ${params.assigneeId})`,
-    historyLogUpdateAssignee: (params) => `Asignado actualizado "${params.name}" (ID: ${params.assigneeId}). ${params.changesSummary}`,
+    historyLogUpdateAssignee: (params) => `Asignado actualizado "${params.name}" (ID: ${params.assigneeId}). Cambios: ${params.changesSummary}.`,
     historyLogDeleteAssignee: (params) => `Asignado eliminado: "${params.name}" (Usuario: ${params.username}). (ID: ${params.assigneeId})`,
-    historyScopeAccount: "Cuenta",
-    historyScopePersonal: "Personal",
-    historyScopeWork: "Trabajo",
-    historyScopeCategory: "Categoría",
-    historyScopeAssignee: "Asignado",
-    historyScopeHabit: "Hábito",
     historyLogAddHabit: (params) => `Añadido Hábito: "${params.name}".`,
-    historyLogUpdateHabit: (params) => `Actualizado Hábito "${params.name}" (ID: ${params.habitId}). ${params.changesSummary}`,
+    historyLogUpdateHabit: (params) => `Actualizado Hábito "${params.name}" (ID: ${params.habitId}). Cambios: ${params.changesSummary}.`,
     historyLogDeleteHabit: (params) => `Eliminado Hábito: "${params.name}".`,
     historyLogToggleHabitCompletion: (params) => `Hábito "${params.habitName}", Franja "${params.slotName}" en ${params.date} marcado como ${params.completed ? 'completado' : 'incompleto'}.`,
+    historyLogTimezoneChange: (params) => `Zona horaria cambiada de ${params.oldTimezone} a ${params.newTimezone}.`,
     unknownUser: "Usuario Desconocido",
     unknownText: "N/A",
     unknownActivityTitle: "Actividad sin nombre",
@@ -1102,7 +1097,7 @@ export const translations: Record<Locale, Translations> = {
     timeNotSet: "Hora no establecida",
     uncategorized: "Sin categoría",
     notSetValuePlaceholder: "Sin especificar",
-    noDetailedChangesLogged: "Detalles verificados, sin cambios específicos de campo.",
+    noDetailedChangesLogged: "Detalles verificados; sin cambios específicos de campo.",
     fieldChangeDetail: (params) => `${params.field} cambiado de "${params.from}" a "${params.to}"`,
     fieldSetToDetail: (params) => `${params.field} establecido a "${params.value}"`,
     titleLabel: "Título",
@@ -1199,6 +1194,9 @@ export const translations: Record<Locale, Translations> = {
     systemNotificationsNotYetEnabled: "Notifications système pas encore activées.",
     systemNotificationsDismissed: "Vous pourrez activer les notifications plus tard depuis le menu des options.",
     manageAssignees: "Gérer les Personnes Assignées",
+    timezoneSettingTitle: "Fuseau Horaire",
+    currentTimezoneLabel: (params) => `Fuseau: ${params.tz}`,
+    useSystemTimezone: "Utiliser celui par Défaut du Système",
     backToCalendar: "Retour au calendrier",
     addCategory: "Ajouter une catégorie",
     editCategory: "Modifier la catégorie",
@@ -1450,27 +1448,22 @@ export const translations: Record<Locale, Translations> = {
     historyLogLogin: (params) => `Utilisateur "${params.username}" connecté.`,
     historyLogLogout: (params) => `Utilisateur "${params.username}" déconnecté.`,
     historyLogAddActivity: (params) => `Activité (${params.mode}) ajoutée : "${params.title}" (Catégorie : ${params.categoryName}) pour le ${params.date} à ${params.time}. (ID : ${params.activityId})`,
-    historyLogUpdateActivity: (params) => `Activité (${params.mode}) "${params.title}" (ID : ${params.activityId}) mise à jour. ${params.changesSummary}`,
+    historyLogUpdateActivity: (params) => `Activité (${params.mode}) "${params.title}" (ID : ${params.activityId}) mise à jour. Changements : ${params.changesSummary}.`,
     historyLogDeleteActivity: (params) => `Activité (${params.mode}) supprimée : "${params.title}" (Catégorie : ${params.categoryName}) pour le ${params.date} à ${params.time}. (ID : ${params.activityId})`,
     historyLogToggleActivityCompletion: (params) => `Activité (${params.mode}) "${params.title}" (ID : ${params.activityId}) pour le ${params.date} à ${params.time} marquée comme ${params.completed ? 'terminée' : 'non terminée'}.`,
     historyLogAddCategory: (params) => `Catégorie ajoutée : "${params.name}" (Icône : ${params.iconName}, Mode : ${params.mode}). (ID : ${params.categoryId})`,
-    historyLogUpdateCategory: (params) => `Catégorie "${params.name}" (ID : ${params.categoryId}) mise à jour. ${params.changesSummary}`,
+    historyLogUpdateCategory: (params) => `Catégorie "${params.name}" (ID : ${params.categoryId}) mise à jour. Changements : ${params.changesSummary}.`,
     historyLogDeleteCategory: (params) => `Catégorie supprimée : "${params.name}" (Icône : ${params.iconName}, Mode : ${params.mode}). (ID : ${params.categoryId})`,
     historyLogSwitchMode: (params) => `Mode changé de ${params.oldMode} à ${params.newMode}.`,
     historyLogPasswordChangeAttempt: (params) => `Tentative de changement de mot de passe pour l'utilisateur ID : ${params.userId}.`,
     historyLogAddAssignee: (params) => `Personne assignée ajoutée : "${params.name}" (Utilisateur : ${params.username}, Admin : ${params.isAdmin ? 'Oui' : 'Non'}). (ID : ${params.assigneeId})`,
-    historyLogUpdateAssignee: (params) => `Personne assignée "${params.name}" (ID : ${params.assigneeId}) mise à jour. ${params.changesSummary}`,
+    historyLogUpdateAssignee: (params) => `Personne assignée "${params.name}" (ID : ${params.assigneeId}) mise à jour. Changements : ${params.changesSummary}.`,
     historyLogDeleteAssignee: (params) => `Personne assignée supprimée : "${params.name}" (Utilisateur : ${params.username}). (ID : ${params.assigneeId})`,
-    historyScopeAccount: "Compte",
-    historyScopePersonal: "Personnel",
-    historyScopeWork: "Travail",
-    historyScopeCategory: "Catégorie",
-    historyScopeAssignee: "Personne Assignée",
-    historyScopeHabit: "Habitude",
     historyLogAddHabit: (params) => `Habitude ajoutée : "${params.name}".`,
-    historyLogUpdateHabit: (params) => `Habitude "${params.name}" (ID : ${params.habitId}) mise à jour. ${params.changesSummary}`,
+    historyLogUpdateHabit: (params) => `Habitude "${params.name}" (ID : ${params.habitId}) mise à jour. Changements : ${params.changesSummary}.`,
     historyLogDeleteHabit: (params) => `Habitude supprimée : "${params.name}".`,
     historyLogToggleHabitCompletion: (params) => `Habitude "${params.habitName}", Créneau "${params.slotName}" le ${params.date} marqué comme ${params.completed ? 'terminé' : 'incomplet'}.`,
+    historyLogTimezoneChange: (params) => `Fuseau horaire changé de ${params.oldTimezone} à ${params.newTimezone}.`,
     unknownUser: "Utilisateur Inconnu",
     unknownText: "N/A",
     unknownActivityTitle: "Activité sans nom",
@@ -1480,7 +1473,7 @@ export const translations: Record<Locale, Translations> = {
     timeNotSet: "Heure non définie",
     uncategorized: "Non catégorisé",
     notSetValuePlaceholder: "Non défini",
-    noDetailedChangesLogged: "Détails vérifiés, aucune modification de champ spécifique.",
+    noDetailedChangesLogged: "Détails vérifiés ; aucune modification de champ spécifique.",
     fieldChangeDetail: (params) => `${params.field} changé de "${params.from}" à "${params.to}"`,
     fieldSetToDetail: (params) => `${params.field} défini à "${params.value}"`,
     titleLabel: "Titre",
@@ -1554,6 +1547,7 @@ type PathImpl<T, Key extends keyof T> =
 type Path<T> = PathImpl<T, keyof T> | keyof T;
 
 export type TranslationKey = Path<Translations['en']>;
+
 
 
 

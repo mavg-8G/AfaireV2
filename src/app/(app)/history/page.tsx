@@ -8,8 +8,9 @@ import { useTranslations } from '@/contexts/language-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowLeft, History as HistoryIconLucide, User, Briefcase, Tag, Shield, Loader2, Brain, Users } from 'lucide-react'; // Added Users
-import { format, parseISO, startOfDay } from 'date-fns';
+import { ArrowLeft, History as HistoryIconLucide, User, Briefcase, Tag, Shield, Loader2, Brain, Users, Globe } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { formatInTimeZone, zonedTimeToUtc, utcToZonedTime } from 'date-fns-tz';
 import { enUS, es, fr } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -20,7 +21,7 @@ interface GroupedHistory {
 }
 
 export default function HistoryPage() {
-  const { historyLog, isLoading } = useAppStore();
+  const { historyLog, isLoading, selectedTimezone } = useAppStore();
   const { t, locale } = useTranslations();
   const dateLocale = useMemo(() => (locale === 'es' ? es : locale === 'fr' ? fr : enUS), [locale]);
 
@@ -46,19 +47,54 @@ export default function HistoryPage() {
   const groupedHistory = useMemo(() => {
     if (!historyLog) return {};
     return historyLog.reduce((acc, entry) => {
-      const displayTimestamp = entry.timestamp - (5 * 60 * 60 * 1000);
-      const dayKey = format(startOfDay(new Date(displayTimestamp)), 'yyyy-MM-dd');
-      if (!acc[dayKey]) {
-        acc[dayKey] = [];
+      try {
+        // Convert original UTC timestamp to the selected timezone for grouping
+        const zonedEntryDate = utcToZonedTime(new Date(entry.timestamp), selectedTimezone);
+        const dayKey = formatInTimeZone(zonedEntryDate, selectedTimezone, 'yyyy-MM-dd');
+
+        if (!acc[dayKey]) {
+          acc[dayKey] = [];
+        }
+        acc[dayKey].push(entry);
+      } catch (e) {
+        console.warn(`[HistoryPage] Error processing timestamp for grouping (entry ID ${entry.id}, tz: ${selectedTimezone}):`, e);
+        // Fallback to UTC grouping if timezone conversion fails for grouping key
+        const dayKeyUTC = format(new Date(entry.timestamp), 'yyyy-MM-dd');
+         if (!acc[dayKeyUTC]) {
+          acc[dayKeyUTC] = [];
+        }
+        acc[dayKeyUTC].push(entry);
       }
-      acc[dayKey].push(entry);
       return acc;
     }, {} as GroupedHistory);
-  }, [historyLog]);
+  }, [historyLog, selectedTimezone]);
 
   const sortedDateKeys = useMemo(() => {
     return Object.keys(groupedHistory).sort((a, b) => parseISO(b).getTime() - parseISO(a).getTime());
   }, [groupedHistory]);
+
+  const formatTimestampForDisplay = (timestamp: number): string => {
+    try {
+      return formatInTimeZone(new Date(timestamp), selectedTimezone, 'p', { locale: dateLocale });
+    } catch (e) {
+      console.warn(`[HistoryPage] Error formatting timestamp ${timestamp} in timezone ${selectedTimezone}. Falling back to local time. Error:`, e);
+      // Fallback to local time formatting if timezone specific formatting fails
+      return format(new Date(timestamp), 'p', { locale: dateLocale });
+    }
+  };
+  
+  const formatDateHeader = (dateKey: string): string => {
+    try {
+       // The dateKey is already in 'yyyy-MM-dd' for the selectedTimezone or UTC fallback.
+       // We just need to parse it as if it's a local date and then format it.
+       const dateObject = parseISO(dateKey); 
+       return format(dateObject, 'PPPP', { locale: dateLocale });
+    } catch (e) {
+        console.warn(`[HistoryPage] Error formatting date header for key ${dateKey}. Error:`, e);
+        return dateKey; // Fallback to raw dateKey
+    }
+  };
+
 
   return (
     <div className="flex flex-col flex-grow min-h-screen">
@@ -90,7 +126,7 @@ export default function HistoryPage() {
                 {sortedDateKeys.map((dateKey) => (
                   <div key={dateKey} className="mb-6">
                     <h2 className="text-lg font-semibold text-primary mb-3 sticky top-0 bg-background/90 backdrop-blur-sm py-2 z-10 border-b">
-                      {format(parseISO(dateKey), 'PPPP', { locale: dateLocale })}
+                      {formatDateHeader(dateKey)}
                     </h2>
                     <ul className="space-y-4">
                       {groupedHistory[dateKey].map((entry) => {
@@ -102,9 +138,7 @@ export default function HistoryPage() {
                           console.warn(`Missing translation for history action key: ${entry.actionKey}`);
                         }
 
-                        const displayTimestamp = entry.timestamp - (5 * 60 * 60 * 1000);
-                        const displayDateObject = new Date(displayTimestamp);
-                        const formattedTime = format(displayDateObject, 'p', { locale: dateLocale }); // Only time
+                        const formattedTime = formatTimestampForDisplay(entry.timestamp);
 
                         return (
                           <li key={entry.id} className="flex items-start space-x-3 p-3 bg-muted/30 rounded-lg shadow-sm border">
@@ -140,3 +174,4 @@ export default function HistoryPage() {
     </div>
   );
 }
+

@@ -244,7 +244,9 @@ export type HistoryLogActionKey =
   | 'historyLogAddHabit'
   | 'historyLogUpdateHabit'
   | 'historyLogDeleteHabit'
-  | 'historyLogToggleHabitCompletion';
+  | 'historyLogToggleHabitCompletion'
+  | 'historyLogTimezoneChange';
+
 
 export interface HistoryLogEntry {
   id: number;
@@ -259,8 +261,8 @@ export interface HistoryLogEntry {
 export interface BackendHistoryCreatePayload {
     action: string;
     user_id: number;
-    details?: Record<string, any>; // Add details to backend payload
-    scope?: string; // Add scope to backend payload
+    details?: Record<string, any>; 
+    scope?: string; 
 }
 
 export interface BackendHistory {
@@ -269,8 +271,8 @@ export interface BackendHistory {
   action: string;
   user_id: number;
   user?: BackendUser;
-  details?: Record<string, any>; // Expect details from backend
-  scope?: HistoryLogEntry['scope']; // Expect scope from backend
+  details?: Record<string, any>; 
+  scope?: HistoryLogEntry['scope']; 
 }
 
 // --- HABITS ---
@@ -412,6 +414,9 @@ export interface AppContextType {
   deleteHabit: (habitId: number) => Promise<void>;
   toggleHabitSlotCompletion: (habitId: number, slotId: number, dateKey: string, currentStatus: HabitSlotCompletionStatus | undefined) => Promise<void>;
   getHabitById: (habitId: number) => Habit | undefined;
+  
+  selectedTimezone: string;
+  setSelectedTimezone: (timezone: string) => void;
 }
 
     

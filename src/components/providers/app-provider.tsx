@@ -87,6 +87,7 @@ import {
   formatDistanceToNowStrict,
   format as formatDateFns,
 } from "date-fns";
+import { formatInTimeZone } from 'date-fns-tz';
 import * as Icons from "lucide-react";
 import { useTranslations } from "@/contexts/language-context";
 import { enUS, es, fr } from "date-fns/locale";
@@ -105,6 +106,8 @@ export const AppContext = createContext<AppContextType | undefined>(undefined);
 const LOCAL_STORAGE_KEY_APP_MODE = "todoFlowAppMode_v2";
 const LOCAL_STORAGE_KEY_UI_NOTIFICATIONS = "todoFlowUINotifications_v2";
 const LOCAL_STORAGE_KEY_APP_PIN = "todoFlowAppPin_v2";
+const LOCAL_STORAGE_KEY_TIMEZONE = "todoFlowTimezone_v1";
+
 
 export const getIconComponent = (
   iconName: string | undefined | null
@@ -765,6 +768,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [assignees, setAllAssignees] = useState<Assignee[]>([]);
   const [appModeState, setAppModeState] = useState<AppMode>("personal");
+  const [selectedTimezone, setSelectedTimezoneState] = useState<string>('UTC');
 
   const [accessTokenState, setAccessTokenState] = useState<string | null>(null);
   const [decodedJwtState, setDecodedJwtState] = useState<DecodedToken | null>(null);
@@ -772,6 +776,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
 
   const accessTokenRef = useRef<string | null>(null);
   const decodedJwtRef = useRef<DecodedToken | null>(null);
+  const logoutChannelRef = useRef<BroadcastChannel | null>(null);
+
 
   useEffect(() => {
     accessTokenRef.current = accessTokenState;
@@ -835,7 +841,78 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     | null
   >(null);
 
-  const logoutChannelRef = useRef<BroadcastChannel | null>(null);
+  useEffect(() => {
+    const storedTimezone = localStorage.getItem(LOCAL_STORAGE_KEY_TIMEZONE);
+    if (storedTimezone && typeof storedTimezone === 'string') {
+        try {
+            if (Intl.supportedValuesOf('timeZone').includes(storedTimezone)) {
+                setSelectedTimezoneState(storedTimezone);
+            } else {
+                throw new Error("Stored timezone not supported by Intl API");
+            }
+        } catch (e) {
+            console.warn(`Error validating stored timezone "${storedTimezone}", attempting browser default. Error: ${e}`);
+            try {
+                const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                if (Intl.supportedValuesOf('timeZone').includes(browserTimezone)) {
+                    setSelectedTimezoneState(browserTimezone);
+                    localStorage.setItem(LOCAL_STORAGE_KEY_TIMEZONE, browserTimezone);
+                } else {
+                    throw new Error("Browser timezone not supported by Intl API");
+                }
+            } catch (e2) {
+                console.warn(`Error detecting or validating browser timezone, defaulting to UTC. Error: ${e2}`);
+                setSelectedTimezoneState('UTC');
+                localStorage.setItem(LOCAL_STORAGE_KEY_TIMEZONE, 'UTC');
+            }
+        }
+    } else { // No stored timezone, try to set browser default or UTC
+        try {
+            const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            if (Intl.supportedValuesOf('timeZone').includes(browserTimezone)) {
+                setSelectedTimezoneState(browserTimezone);
+                localStorage.setItem(LOCAL_STORAGE_KEY_TIMEZONE, browserTimezone);
+            } else {
+                 throw new Error("Browser timezone not supported by Intl API");
+            }
+        } catch (e) {
+            console.warn(`Error detecting or validating browser timezone on initial load, defaulting to UTC. Error: ${e}`);
+            setSelectedTimezoneState('UTC');
+            localStorage.setItem(LOCAL_STORAGE_KEY_TIMEZONE, 'UTC');
+        }
+    }
+  }, []);
+
+
+  const setSelectedTimezone = useCallback((timezone: string) => {
+    const oldTimezone = selectedTimezone;
+    let newTzToSet = 'UTC'; // Default fallback
+
+    if (timezone === 'system') {
+        try {
+            const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            if (Intl.supportedValuesOf('timeZone').includes(browserTimezone)) {
+                newTzToSet = browserTimezone;
+            } else {
+                console.warn(`System default timezone "${browserTimezone}" is not recognized by Intl.supportedValuesOf. Falling back to UTC.`);
+            }
+        } catch (e) {
+            console.warn(`Could not detect system default timezone. Falling back to UTC. Error: ${e}`);
+        }
+    } else if (Intl.supportedValuesOf('timeZone').includes(timezone)) {
+        newTzToSet = timezone;
+    } else {
+        console.warn(`Attempted to set invalid timezone: "${timezone}". Falling back to UTC.`);
+    }
+
+    setSelectedTimezoneState(newTzToSet);
+    localStorage.setItem(LOCAL_STORAGE_KEY_TIMEZONE, newTzToSet);
+
+    if (oldTimezone !== newTzToSet && addHistoryLogEntryRef.current) {
+        addHistoryLogEntryRef.current('historyLogTimezoneChange', { oldTimezone, newTimezone: newTzToSet }, 'account');
+    }
+  }, [selectedTimezone]);
+
 
   const logout = useCallback(
     (isTokenRefreshFailure: boolean = false) => {
@@ -899,7 +976,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         logoutChannelRef.current.postMessage("logout_event_v2");
       }
     },
-  [t] // Removed `addHistoryLogEntryRef` dependency for stability if it changes internally
+  [t] 
 );
 
   const decodeAndSetAccessToken = useCallback(
@@ -911,6 +988,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         setDecodedJwtState(null);
         return null;
       }
+      console.log(`[AppProvider decodeAndSetAccessToken] Attempting to decode token: ${tokenString.substring(0,20)}...`);
       try {
         const parts = tokenString.split(".");
         if (parts.length !== 3)
@@ -1266,7 +1344,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         return;
       }
 
-      // Sanitize details before sending to backend or using locally
       const sanitizedDetailsForBackend: Record<string, any> = {};
       const sanitizedDetailsForFrontend: Record<string, string | number | boolean | null> = {};
 
@@ -1278,10 +1355,10 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
               sanitizedDetailsForBackend[key] = value;
               sanitizedDetailsForFrontend[key] = value;
             } else if (value === undefined) {
-              sanitizedDetailsForBackend[key] = null; // Send null to backend for undefined
-              sanitizedDetailsForFrontend[key] = t('notSetValuePlaceholder'); // Use placeholder for frontend
+              sanitizedDetailsForBackend[key] = null; 
+              sanitizedDetailsForFrontend[key] = t('notSetValuePlaceholder'); 
             } else {
-              sanitizedDetailsForBackend[key] = String(value); // Fallback for other types
+              sanitizedDetailsForBackend[key] = String(value); 
               sanitizedDetailsForFrontend[key] = String(value);
             }
           }
@@ -1312,10 +1389,9 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           );
         }
         const newBackendHistoryEntry: BackendHistory = await response.json();
-        // When converting for frontend display, ensure 'details' uses the frontend-specific sanitized values
         const frontendLogEntry = backendToFrontendHistory({
             ...newBackendHistoryEntry,
-            details: sanitizedDetailsForFrontend // Use frontend-sanitized details for display
+            details: sanitizedDetailsForFrontend 
         }, t);
         setHistoryLog((prevLog) => [frontendLogEntry, ...prevLog.slice(0, 99)]);
       } catch (err) {
@@ -1980,20 +2056,25 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
 
   useEffect(() => {
     if (typeof window !== "undefined" && !logoutChannelRef.current) {
-      logoutChannelRef.current = new BroadcastChannel("todoFlowLogoutChannel_v2");
+        logoutChannelRef.current = new BroadcastChannel("todoFlowLogoutChannel_v2");
     }
     const channel = logoutChannelRef.current;
     if (!channel) return;
+
     const handleLogoutMessage = (event: MessageEvent) => {
-      if (event.data === "logout_event_v2" && accessTokenRef.current) {
-        logout();
-      }
+        if (event.data === "logout_event_v2" && accessTokenRef.current) {
+            console.log("[AppProvider BroadcastChannel] Received logout_event_v2, initiating logout.");
+            logout();
+        }
     };
+
     channel.addEventListener("message", handleLogoutMessage);
+
     return () => {
-      channel.removeEventListener("message", handleLogoutMessage);
+        channel.removeEventListener("message", handleLogoutMessage);
     };
   }, [logout]);
+
 
 
   const setAppMode = useCallback(
@@ -2332,19 +2413,19 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     notSetValueKey: keyof Translations = 'notSetValuePlaceholder',
     valueFormatter?: (val: any) => string
   ): string | null => {
-    const format = (val: any): string => {
-      if (val === undefined || val === null) {
+    
+    const formatValDisplay = (val: any): string => {
+      if (val === undefined || val === null || String(val).trim() === '') {
         return t(notSetValueKey);
       }
-      const formatted = valueFormatter ? valueFormatter(val) : String(val);
-      return formatted.trim() === '' ? t(notSetValueKey) : formatted;
+      return valueFormatter ? valueFormatter(val) : String(val);
     };
-
-    const oldStr = format(oldValue);
-    const newStr = format(newValue);
-
+  
+    const oldStr = formatValDisplay(oldValue);
+    const newStr = formatValDisplay(newValue);
+  
     if (oldStr !== newStr) {
-      if (oldStr === t(notSetValueKey) && newStr !== t(notSetValueKey)) {
+      if (oldStr === t(notSetValueKey)) { 
         return t('fieldSetToDetail', { field: t(fieldNameKey), value: newStr });
       }
       return t('fieldChangeDetail', { field: t(fieldNameKey), from: oldStr, to: newStr });
@@ -2359,19 +2440,33 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     notSetValueKey: keyof Translations = 'notSetValuePlaceholder'
   ): string => {
     const changes: string[] = [];
-    if (!oldData) return t('detailsNotAvailable'); // Or handle as "all fields set"
-
-    for (const key in fieldMappings) {
-      if (Object.prototype.hasOwnProperty.call(fieldMappings, key)) {
-        const oldVal = oldData[key];
-        const newVal = newData[key];
-        const { labelKey, formatter } = fieldMappings[key];
-        const entry = generateChangeEntry(labelKey, oldVal, newVal, notSetValueKey, formatter);
-        if (entry) {
-          changes.push(entry);
+    if (!oldData) { 
+        for (const key in fieldMappings) {
+            if (Object.prototype.hasOwnProperty.call(fieldMappings, key) && newData[key] !== undefined && newData[key] !== null && String(newData[key]).trim() !== '') {
+                const { labelKey, formatter } = fieldMappings[key];
+                const formattedNewVal = formatter ? formatter(newData[key]) : String(newData[key]);
+                changes.push(t('fieldSetToDetail', { field: t(labelKey), value: formattedNewVal }));
+            }
         }
-      }
+    } else {
+        for (const key in fieldMappings) {
+            if (Object.prototype.hasOwnProperty.call(fieldMappings, key)) {
+                const oldVal = oldData[key];
+                const newVal = newData[key];
+                const { labelKey, formatter } = fieldMappings[key];
+                
+                // Only consider a change if newData has the key explicitly (even if it's to set it to null/undefined)
+                // or if oldData had the key and it's different in newData (or absent in newData).
+                if (Object.prototype.hasOwnProperty.call(newData, key) || (oldData && Object.prototype.hasOwnProperty.call(oldData, key))) {
+                    const entry = generateChangeEntry(labelKey, oldVal, newVal, notSetValueKey, formatter);
+                    if (entry) {
+                    changes.push(entry);
+                    }
+                }
+            }
+        }
     }
+
     if (changes.length === 0) {
       return t('noDetailedChangesLogged');
     }
@@ -2736,7 +2831,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             { 
               name: { labelKey: 'assigneeNameLabel' }, 
               username: { labelKey: 'usernameLabel' }, 
-              isAdmin: { labelKey: 'adminStatusLabel', formatter: (val) => t(val ? 'adminBadge' : 'userBadge' as any) } // Assuming 'userBadge' translation exists
+              isAdmin: { labelKey: 'adminStatusLabel', formatter: (val) => t(val ? 'adminBadge' : 'unknownText' as any) } 
             }
         ) : t('detailsNotAvailable');
         
@@ -3268,13 +3363,12 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         modeForLog = "work";
       }
 
-      if (!activityToDelete || activityToDelete.isSummary) { // Also fetch if it's just a summary
+      if (!activityToDelete || activityToDelete.isSummary) { 
         const fetchedFullActivity = await fetchAndSetSpecificActivityDetails(activityId);
         if (!fetchedFullActivity) {
             console.error("[AppProvider] Activity not found for deletion, even after fetch:", activityId);
             toast({ variant: "destructive", title: "Error", description: "Activity not found for deletion."});
-            // Attempt to log with whatever info we might have had, or fallbacks
-             if (addHistoryLogEntryRef.current && activityToDelete) { // If we had at least a summary
+             if (addHistoryLogEntryRef.current && activityToDelete) { 
                 addHistoryLogEntryRef.current(
                     "historyLogDeleteActivity",
                     {
@@ -3290,7 +3384,7 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             }
             return;
         }
-        activityToDelete = fetchedFullActivity; // Now we have full details
+        activityToDelete = fetchedFullActivity; 
         setter = activityToDelete.appMode === 'personal' ? setPersonalActivities : setWorkActivities;
         modeForLog = activityToDelete.appMode;
       }
@@ -4201,6 +4295,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       deleteHabit,
       toggleHabitSlotCompletion,
       getHabitById,
+      selectedTimezone,
+      setSelectedTimezone,
     }),
     [
       getRawActivities,
@@ -4250,6 +4346,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       deleteHabit,
       toggleHabitSlotCompletion,
       getHabitById,
+      selectedTimezone,
+      setSelectedTimezone,
     ]
   );
 
