@@ -4,9 +4,12 @@
 import type { Habit, HabitSlot, HabitSlotCompletionStatus } from '@/lib/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Clock } from 'lucide-react';
+import { Clock, CalendarDays } from 'lucide-react'; // Added CalendarDays
 import { cn } from '@/lib/utils';
 import { useTranslations } from '@/contexts/language-context';
+import { format } from 'date-fns'; // To format the date
+import { enUS, es, fr } from 'date-fns/locale';
+import React, { useMemo } from 'react'; // Added useMemo
 
 interface HabitListItemProps {
   habit: Habit;
@@ -14,12 +17,19 @@ interface HabitListItemProps {
   date: Date; // The specific date for which this slot's completion is being tracked
   completionStatus: HabitSlotCompletionStatus | undefined;
   onToggleCompletion: (completed: boolean) => void;
+  showDate?: boolean; // Optional prop to control date visibility, defaults to true for dashboard
 }
 
-export default function HabitListItem({ habit, slot, completionStatus, onToggleCompletion }: HabitListItemProps) {
-  const { t } = useTranslations();
+export default function HabitListItem({ habit, slot, date, completionStatus, onToggleCompletion, showDate = true }: HabitListItemProps) {
+  const { t, locale } = useTranslations();
   const isCompleted = !!completionStatus?.completed;
-  const uniqueId = `habit-${habit.id}-slot-${slot.id}`;
+  const uniqueId = `habit-${habit.id}-slot-${slot.id}-${date.getTime()}`; // Ensure unique ID with date
+
+  const dateLocale = useMemo(() => {
+    if (locale === 'es') return es;
+    if (locale === 'fr') return fr;
+    return enUS;
+  }, [locale]);
 
   return (
     <div className={cn(
@@ -49,17 +59,29 @@ export default function HabitListItem({ habit, slot, completionStatus, onToggleC
               {habit.name} - <span className="font-normal text-muted-foreground">{slot.name}</span>
             </span>
           </Label>
-          {slot.default_time && (
-            <div className={cn(
-              "flex items-center text-xs text-muted-foreground mt-0.5",
-              isCompleted && "text-muted-foreground/70"
-            )}>
-              <Clock className="mr-1 h-3 w-3" />
-              {slot.default_time}
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-x-2 mt-0.5">
+            {showDate && (
+              <div className={cn(
+                "flex items-center text-xs text-muted-foreground",
+                isCompleted && "text-muted-foreground/70"
+              )}>
+                <CalendarDays className="mr-1 h-3 w-3" />
+                {format(date, 'MMM d', { locale: dateLocale })}
+              </div>
+            )}
+            {slot.default_time && (
+              <div className={cn(
+                "flex items-center text-xs text-muted-foreground",
+                isCompleted && "text-muted-foreground/70"
+              )}>
+                <Clock className="mr-1 h-3 w-3" />
+                {slot.default_time}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
