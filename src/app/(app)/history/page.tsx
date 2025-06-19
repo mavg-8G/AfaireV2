@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ArrowLeft, History as HistoryIconLucide, User, Briefcase, Tag, Shield, Loader2, Brain, Users, Globe } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { formatInTimeZone, toZonedTime } from 'date-fns-tz'; // Corrected import
+import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 import { enUS, es, fr } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -48,9 +48,10 @@ export default function HistoryPage() {
     if (!historyLog) return {};
     return historyLog.reduce((acc, entry) => {
       try {
-        // Convert original UTC timestamp to the selected timezone for grouping
         const entryDateUTC = new Date(entry.timestamp);
-        const zonedEntryDate = toZonedTime(entryDateUTC, selectedTimezone); // Corrected usage
+        // Convert UTC date to the selected timezone
+        const zonedEntryDate = toZonedTime(entryDateUTC, selectedTimezone);
+        // Format this zoned date to get the day key as it is in that timezone
         const dayKey = formatInTimeZone(zonedEntryDate, selectedTimezone, 'yyyy-MM-dd');
 
         if (!acc[dayKey]) {
@@ -79,20 +80,19 @@ export default function HistoryPage() {
       return formatInTimeZone(new Date(timestamp), selectedTimezone, 'p', { locale: dateLocale });
     } catch (e) {
       console.warn(`[HistoryPage] Error formatting timestamp ${timestamp} in timezone ${selectedTimezone}. Falling back to local time. Error:`, e);
-      // Fallback to local time formatting if timezone specific formatting fails
       return format(new Date(timestamp), 'p', { locale: dateLocale });
     }
   };
   
   const formatDateHeader = (dateKey: string): string => {
     try {
-       // The dateKey is already in 'yyyy-MM-dd' for the selectedTimezone or UTC fallback.
-       // We just need to parse it as if it's a local date and then format it.
+       // The dateKey is 'yyyy-MM-dd' *in the selected timezone*.
+       // parseISO will parse it as a local date. format will then display it using dateLocale.
        const dateObject = parseISO(dateKey); 
        return format(dateObject, 'PPPP', { locale: dateLocale });
     } catch (e) {
         console.warn(`[HistoryPage] Error formatting date header for key ${dateKey}. Error:`, e);
-        return dateKey; // Fallback to raw dateKey
+        return dateKey; 
     }
   };
 
@@ -134,7 +134,6 @@ export default function HistoryPage() {
                         const scopeInfo = getScopeInfo(entry.scope);
                         let actionText = entry.backendAction || entry.actionKey;
                         try {
-                           // Ensure details are suitable for the translation function
                            const translatableDetails: Record<string, string | number | boolean> = {};
                            if (entry.details) {
                              for (const key in entry.details) {
