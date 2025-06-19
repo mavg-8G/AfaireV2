@@ -299,18 +299,7 @@ export default function AppHeader() {
                   <Layers className="h-5 w-5" />
                 </Button>
               </Link>
-              <Link href="/habits" passHref>
-                <Button variant="outline" size="icon" aria-label={t('manageHabits') as string}>
-                  <Brain className="h-5 w-5" />
-                </Button>
-              </Link>
-              {appMode === 'personal' && (
-                <Link href="/assignees" passHref>
-                  <Button variant="outline" size="icon" aria-label={t('manageAssignees')}>
-                    <Users className="h-5 w-5" />
-                  </Button>
-                </Link>
-              )}
+
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -319,6 +308,20 @@ export default function AppHeader() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                   <DropdownMenuItem asChild>
+                    <Link href="/habits" className="flex items-center w-full">
+                        <Brain className="mr-2 h-4 w-4" />
+                        {t('manageHabits')}
+                    </Link>
+                  </DropdownMenuItem>
+                  {appMode === 'personal' && (
+                    <DropdownMenuItem asChild>
+                        <Link href="/assignees" className="flex items-center w-full">
+                            <Users className="mr-2 h-4 w-4" />
+                            {t('manageAssignees')}
+                        </Link>
+                    </DropdownMenuItem>
+                  )}
                   {sharedOptionsItems(false)}
                 </DropdownMenuContent>
               </DropdownMenu>
