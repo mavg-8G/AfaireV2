@@ -32,8 +32,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
 const ChangePasswordModal = dynamic(() => import('@/components/forms/change-password-modal'), {
-  ssr: false, 
-  loading: () => <p>Loading...</p> 
+  ssr: false,
+  loading: () => <p>Loading...</p>
 });
 
 export default function AppHeader() {
@@ -50,7 +50,7 @@ export default function AppHeader() {
     clearAllUINotifications,
     systemNotificationPermission,
     requestSystemNotificationPermission,
-    selectedTimezone, 
+    selectedTimezone,
     setSelectedTimezone,
   } = useAppStore();
   const router = useRouter();
@@ -181,7 +181,7 @@ export default function AppHeader() {
           {t('systemNotificationsBlocked')}
         </DropdownMenuItem>
       );
-    } else { 
+    } else {
       return (
         <DropdownMenuItem onClick={requestSystemNotificationPermission}>
           <BellPlus className="mr-2 h-4 w-4" />
@@ -194,25 +194,11 @@ export default function AppHeader() {
   const sharedOptionsItems = (isMobileMenu: boolean) => (
     <>
       <DropdownMenuItem asChild>
-        <Link href="/habits" className="flex items-center w-full">
-            <Brain className="mr-2 h-4 w-4" /> 
-            {t('manageHabits')}
-        </Link>
-      </DropdownMenuItem>
-      <DropdownMenuItem asChild>
         <Link href="/history" className="flex items-center w-full">
             <HistoryIcon className="mr-2 h-4 w-4" />
             {t('viewHistory')}
         </Link>
       </DropdownMenuItem>
-      {appMode === 'personal' && ( 
-         <DropdownMenuItem asChild>
-            <Link href="/assignees" className="flex items-center w-full">
-                <Users className="mr-2 h-4 w-4" />
-                {t('manageAssignees')}
-            </Link>
-        </DropdownMenuItem>
-      )}
       <DropdownMenuSeparator />
       {systemNotificationMenuItem()}
       <DropdownMenuSeparator />
@@ -283,7 +269,7 @@ export default function AppHeader() {
 
           {/* Right Group */}
           <div className="flex items-center gap-x-1 sm:gap-x-2 mr-4">
-            
+
             {/* Notification Bell - Visible on all screen sizes */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -329,11 +315,11 @@ export default function AppHeader() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="icon" aria-label={t('moreOptionsDesktop')}>
-                    <Settings className="h-5 w-5" /> 
+                    <Settings className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {sharedOptionsItems(false)} 
+                  {sharedOptionsItems(false)}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -364,8 +350,21 @@ export default function AppHeader() {
                       {t('manageCategories')}
                     </Link>
                   </DropdownMenuItem>
-                  {/* Habits link for mobile already part of sharedOptionsItems */}
-                  {sharedOptionsItems(true)} 
+                   <DropdownMenuItem asChild>
+                    <Link href="/habits" className="flex items-center w-full">
+                        <Brain className="mr-2 h-4 w-4" />
+                        {t('manageHabits')}
+                    </Link>
+                  </DropdownMenuItem>
+                  {appMode === 'personal' && (
+                    <DropdownMenuItem asChild>
+                        <Link href="/assignees" className="flex items-center w-full">
+                            <Users className="mr-2 h-4 w-4" />
+                            {t('manageAssignees')}
+                        </Link>
+                    </DropdownMenuItem>
+                  )}
+                  {sharedOptionsItems(true)}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
