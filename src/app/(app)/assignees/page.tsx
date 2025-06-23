@@ -1,4 +1,3 @@
-
 "use client";
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
@@ -379,13 +378,15 @@ export default function ManageAssigneesPage() {
                   <ul className="space-y-3">
                     {assignees.map((assignee) => (
                       <li key={assignee.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-md shadow-sm">
-                        <div className="flex items-center gap-3">
-                          <Users className="h-5 w-5 text-primary" />
-                          <span className="font-medium">{assignee.name}</span>
-                          {assignee.username && <span className="text-xs text-muted-foreground">(@{assignee.username})</span>}
-                          {assignee.isAdmin && <Badge variant="secondary" className="ml-2"><ShieldCheck className="h-3 w-3 mr-1" />{t('adminBadge')}</Badge>}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Users className="h-5 w-5 text-primary flex-shrink-0" />
+                          <div className="truncate">
+                            <span className="font-medium">{assignee.name}</span>
+                            {assignee.username && <span className="text-xs text-muted-foreground">(@{assignee.username})</span>}
+                          </div>
+                          {assignee.isAdmin && <Badge variant="secondary" className="ml-2 flex-shrink-0"><ShieldCheck className="h-3 w-3 mr-1" />{t('adminBadge')}</Badge>}
                         </div>
-                        <div className="flex items-center">
+                        <div className="flex items-center flex-shrink-0">
                           <Button variant="ghost" size="icon" onClick={() => handleEditAssignee(assignee)} className="text-primary hover:text-primary/80" disabled={isSubmitting}>
                             <Edit3 className="h-5 w-5" /><span className="sr-only">{t('editAssignee')}</span>
                           </Button>
@@ -430,5 +431,3 @@ export default function ManageAssigneesPage() {
     </div>
   );
 }
-
-    
