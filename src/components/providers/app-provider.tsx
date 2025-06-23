@@ -87,7 +87,7 @@ import {
   formatDistanceToNowStrict,
   format as formatDateFns,
 } from "date-fns";
-import { formatInTimeZone } from 'date-fns-tz';
+import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 import * as Icons from "lucide-react";
 import { useTranslations } from "@/contexts/language-context";
 import { enUS, es, fr } from "date-fns/locale";
@@ -322,8 +322,8 @@ function hslToHex(h: number, s: number, l: number): string {
 
 const backendToFrontendCategory = (backendCat: BackendCategory): Category => ({
   id: backendCat.id,
-  name: backendCat.name,
-  iconName: backendCat.icon_name,
+  name: backendCat.name || '',
+  iconName: backendCat.icon_name || '',
   icon: getIconComponent(backendCat.icon_name || "Package"),
   mode: backendCat.mode === "both" ? "all" : backendCat.mode,
 });
@@ -337,8 +337,8 @@ const frontendToBackendCategoryMode = (
 
 const backendToFrontendAssignee = (backendUser: BackendUser): Assignee => ({
   id: backendUser.id,
-  name: backendUser.name,
-  username: backendUser.username,
+  name: backendUser.name || '',
+  username: backendUser.username || '',
   isAdmin: backendUser.is_admin || false,
 });
 
@@ -466,11 +466,11 @@ const backendToFrontendActivity = (
 
   return {
     id: backendActivityInput.id,
-    title: backendActivityInput?.title || "Untitled Activity",
+    title: backendActivityInput?.title || "",
     categoryId: backendActivityInput.category_id,
     todos: todosFromBackend, 
     createdAt: createdAtTimestamp,
-    time: backendActivityInput?.time || "00:00",
+    time: backendActivityInput?.time || undefined,
     notes: backendActivityInput?.notes ?? undefined,
     recurrence:
       recurrenceRule.type === "none" ? { type: "none" } : recurrenceRule,
@@ -505,7 +505,7 @@ const frontendToBackendActivityPayload = (
   > = {
     title: activity.title,
     start_date: new Date(activity.createdAt).toISOString(),
-    time: activity.time || "00:00",
+    time: activity.time || undefined,
     category_id: activity.categoryId,
     notes: activity.notes,
     mode: activity.appMode === "all" ? "both" : activity.appMode,
@@ -746,12 +746,12 @@ const backendToFrontendHabit = (beHabit: BackendHabit): Habit => {
   return {
     id: beHabit.id,
     user_id: beHabit.user_id,
-    name: beHabit.name,
-    iconName: beHabit.icon_name,
+    name: beHabit.name || '',
+    iconName: beHabit.icon_name || '',
     icon: getIconComponent(beHabit.icon_name),
     slots: (beHabit.slots || []).map((s: BackendHabitSlot) => ({
       id: s.id,
-      name: s.name,
+      name: s.name || '',
       default_time: s.default_time || undefined,
       order: s.order,
     })),
@@ -921,7 +921,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         `[AppProvider logout] Initiating logout for user ${usernameForLog}. Is token refresh failure: ${isTokenRefreshFailure}`
       );
       if (!isTokenRefreshFailure && addHistoryLogEntryRef.current) {
-        addHistoryLogEntryRef.current("historyLogLogout", { username: usernameForLog }, "account");
+        const details = { username: usernameForLog };
+        addHistoryLogEntryRef.current("historyLogLogout", details, "account");
       }
 
       accessTokenRef.current = null;
@@ -2082,11 +2083,11 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       const oldModeDisplay = appModeState.charAt(0).toUpperCase() + appModeState.slice(1);
       const newModeDisplay = mode.charAt(0).toUpperCase() + mode.slice(1);
       if (mode !== appModeState && addHistoryLogEntryRef.current) {
-        addHistoryLogEntryRef.current(
-          "historyLogSwitchMode",
-          { oldMode: oldModeDisplay, newMode: newModeDisplay },
-          "account"
-        );
+        const details = {
+            oldMode: oldModeDisplay,
+            newMode: newModeDisplay,
+        };
+        addHistoryLogEntryRef.current("historyLogSwitchMode", details, "account");
       }
       setAppModeState(mode);
     },
@@ -2131,11 +2132,9 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           throw new Error("Failed to process token after login.");
 
         if (addHistoryLogEntryRef.current) {
-            addHistoryLogEntryRef.current(
-              "historyLogLogin",
-              { username: decodedFromNewToken.username || t('unknownUser') },
-              "account"
-            );
+            const usernameForLog = decodedFromNewToken.username || t('unknownUser');
+            const details = { username: usernameForLog };
+            addHistoryLogEntryRef.current("historyLogLogin", details, "account");
         }
         if (
           typeof window !== "undefined" &&
@@ -2371,11 +2370,8 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           );
         }
         if (addHistoryLogEntryRef.current) {
-            addHistoryLogEntryRef.current(
-              "historyLogPasswordChangeAttempt",
-              { userId: String(currentUserId) }, 
-              "account"
-            );
+            const details = { userId: String(currentUserId) };
+            addHistoryLogEntryRef.current("historyLogPasswordChangeAttempt", details, "account");
         }
         toast({
           title: t("passwordUpdateSuccessTitle"),
@@ -2455,8 +2451,6 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
                 const newVal = newData[key];
                 const { labelKey, formatter } = fieldMappings[key];
                 
-                // Only consider a change if newData has the key explicitly (even if it's to set it to null/undefined)
-                // or if oldData had the key and it's different in newData (or absent in newData).
                 if (Object.prototype.hasOwnProperty.call(newData, key) || (oldData && Object.prototype.hasOwnProperty.call(oldData, key))) {
                     const entry = generateChangeEntry(labelKey, oldVal, newVal, notSetValueKey, formatter);
                     if (entry) {
@@ -2503,18 +2497,23 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           ...prev,
           backendToFrontendCategory(newBackendCategory),
         ]);
+        
+        const categoryNameForLog = newBackendCategory.name || t('unknownText');
         toast({
           title: t("toastCategoryAddedTitle"),
           description: t("toastCategoryAddedDescription", {
-            categoryName: name,
+            categoryName: categoryNameForLog,
           }),
         });
+
         if (addHistoryLogEntryRef.current) {
-            addHistoryLogEntryRef.current(
-              "historyLogAddCategory",
-              { categoryId: newBackendCategory.id, name: name || t('unknownText'), iconName: iconName || t('unknownText'), mode: mode || t('unknownText') },
-              "category"
-            );
+            const details = {
+                categoryId: newBackendCategory.id,
+                name: categoryNameForLog,
+                iconName: newBackendCategory.icon_name || t('unknownText'),
+                mode: newBackendCategory.mode || t('unknownText'),
+            };
+            addHistoryLogEntryRef.current("historyLogAddCategory", details, "category");
         }
       } catch (err) {
         if (
@@ -2578,25 +2577,35 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             cat.id === categoryId ? updatedFrontendCategory : cat
           )
         );
+        
+        const categoryNameForLog = updatedFrontendCategory.name || t('unknownText');
         toast({
           title: t("toastCategoryUpdatedTitle"),
           description: t("toastCategoryUpdatedDescription", {
-            categoryName: updatedFrontendCategory.name,
+            categoryName: categoryNameForLog,
           }),
         });
         
-        const changesSummary = originalCategory ? generateChangeList(
-            { name: originalCategory.name, iconName: originalCategory.iconName, mode: originalCategory.mode },
-            { name: updatedFrontendCategory.name, iconName: updatedFrontendCategory.iconName, mode: updatedFrontendCategory.mode },
-            { name: { labelKey: 'categoryNameLabel' }, iconName: { labelKey: 'iconNameLabel' }, mode: { labelKey: 'modeLabel', formatter: (val) => t(val === 'all' ? 'modeAll' : val === 'personal' ? 'modePersonal' : 'modeWork' as any) } }
-        ) : t('detailsNotAvailable');
+        let changesSummary = t('detailsNotAvailable');
+        if (originalCategory) {
+            changesSummary = generateChangeList(
+                { name: originalCategory.name, iconName: originalCategory.iconName, mode: originalCategory.mode },
+                { name: updatedFrontendCategory.name, iconName: updatedFrontendCategory.iconName, mode: updatedFrontendCategory.mode },
+                { 
+                    name: { labelKey: 'categoryNameLabel' }, 
+                    iconName: { labelKey: 'iconNameLabel' }, 
+                    mode: { labelKey: 'modeLabel', formatter: (val) => t(val === 'all' ? 'modeAll' : val === 'personal' ? 'modePersonal' : 'modeWork' as any) } 
+                }
+            ) || t('noDetailedChangesLogged');
+        }
 
         if (addHistoryLogEntryRef.current) {
-            addHistoryLogEntryRef.current("historyLogUpdateCategory", { 
+            const details = {
                 categoryId: categoryId, 
-                name: updatedFrontendCategory.name || t('unknownText'), 
+                name: categoryNameForLog, 
                 changesSummary 
-            }, "category");
+            };
+            addHistoryLogEntryRef.current("historyLogUpdateCategory", details, "category");
         }
 
       } catch (err) {
@@ -2630,6 +2639,9 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         (cat) => cat.id === categoryId
       );
       if (!categoryToDelete) return;
+
+      const categoryNameForLog = categoryToDelete.name || t('unknownText');
+
       try {
         const response = await fetchWithAuth(`/categories/${categoryId}`, {
           method: "DELETE",
@@ -2655,20 +2667,17 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         toast({
           title: t("toastCategoryDeletedTitle"),
           description: t("toastCategoryDeletedDescription", {
-            categoryName: categoryToDelete.name,
+            categoryName: categoryNameForLog,
           }),
         });
         if (addHistoryLogEntryRef.current) {
-            addHistoryLogEntryRef.current(
-              "historyLogDeleteCategory",
-              {
+            const details = {
                 categoryId: categoryId,
-                name: categoryToDelete.name || t('unknownText'),
+                name: categoryNameForLog,
                 iconName: categoryToDelete.iconName || t('unknownText'),
                 mode: categoryToDelete.mode || t('unknownText'),
-              },
-              "category"
-            );
+            };
+            addHistoryLogEntryRef.current("historyLogDeleteCategory", details, "category");
         }
       } catch (err) {
         if (
@@ -2738,23 +2747,23 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           ...prev,
           backendToFrontendAssignee(newBackendUser),
         ]);
+
+        const assigneeNameForLog = newBackendUser.name || t('unknownText');
         toast({
           title: t("toastAssigneeAddedTitle"),
           description: t("toastAssigneeAddedDescription", {
-            assigneeName: name,
+            assigneeName: assigneeNameForLog,
           }),
         });
+
         if (addHistoryLogEntryRef.current) {
-            addHistoryLogEntryRef.current(
-              "historyLogAddAssignee",
-              {
+            const details = {
                 assigneeId: newBackendUser.id,
-                name: name || t('unknownText'),
+                name: assigneeNameForLog,
                 username: newBackendUser.username || t('unknownText'),
                 isAdmin: newBackendUser.is_admin,
-              },
-              "assignee"
-            );
+            };
+            addHistoryLogEntryRef.current("historyLogAddAssignee", details, "assignee");
         }
       } catch (err) {
         if (
@@ -2818,22 +2827,27 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setAllAssignees((prev) =>
           prev.map((asg) => (asg.id === assigneeId ? frontendAssignee : asg))
         );
+        
+        const assigneeNameForLog = frontendAssignee.name || t('unknownText');
         toast({
           title: t("toastAssigneeUpdatedTitle"),
           description: t("toastAssigneeUpdatedDescription", {
-            assigneeName: updatedBackendUser.name,
+            assigneeName: assigneeNameForLog,
           }),
         });
         
-        let changesSummary = originalAssignee ? generateChangeList(
-            originalAssignee,
-            { name: frontendAssignee.name, username: frontendAssignee.username, isAdmin: frontendAssignee.isAdmin },
-            { 
-              name: { labelKey: 'assigneeNameLabel' }, 
-              username: { labelKey: 'usernameLabel' }, 
-              isAdmin: { labelKey: 'adminStatusLabel', formatter: (val) => t(val ? 'adminBadge' : 'unknownText' as any) } 
-            }
-        ) : t('detailsNotAvailable');
+        let changesSummary = t('detailsNotAvailable');
+        if (originalAssignee) {
+             changesSummary = generateChangeList(
+                originalAssignee,
+                { name: frontendAssignee.name, username: frontendAssignee.username, isAdmin: frontendAssignee.isAdmin },
+                { 
+                  name: { labelKey: 'assigneeNameLabel' }, 
+                  username: { labelKey: 'usernameLabel' }, 
+                  isAdmin: { labelKey: 'adminStatusLabel', formatter: (val) => val ? t('adminBadge') : 'No' } 
+                }
+            ) || t('noDetailedChangesLogged');
+        }
         
         if (newPassword) {
             const passwordChangeText = t('passwordChangedConfirmation');
@@ -2843,11 +2857,12 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         }
 
         if (addHistoryLogEntryRef.current) {
-            addHistoryLogEntryRef.current("historyLogUpdateAssignee", { 
+            const details = {
                 assigneeId: assigneeId, 
-                name: frontendAssignee.name || t('unknownText'), 
+                name: assigneeNameForLog, 
                 changesSummary 
-            }, "assignee");
+            };
+            addHistoryLogEntryRef.current("historyLogUpdateAssignee", details, "assignee");
         }
 
       } catch (err) {
@@ -2890,6 +2905,9 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
       setError(null);
       const assigneeToDelete = assignees.find((asg) => asg.id === assigneeId);
       if (!assigneeToDelete) return;
+
+      const assigneeNameForLog = assigneeToDelete.name || t('unknownText');
+
       try {
         const response = await fetchWithAuth(`/users/${assigneeId}`, {
           method: "DELETE",
@@ -2919,19 +2937,17 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         toast({
           title: t("toastAssigneeDeletedTitle"),
           description: t("toastAssigneeDeletedDescription", {
-            assigneeName: assigneeToDelete.name,
+            assigneeName: assigneeNameForLog,
           }),
         });
+
         if (addHistoryLogEntryRef.current) {
-            addHistoryLogEntryRef.current(
-              "historyLogDeleteAssignee",
-              {
+            const details = {
                 assigneeId: assigneeId,
-                name: assigneeToDelete.name || t('unknownText'),
+                name: assigneeNameForLog,
                 username: assigneeToDelete.username || t('unknownText'),
-              },
-              "assignee"
-            );
+            };
+            addHistoryLogEntryRef.current("historyLogDeleteAssignee", details, "assignee");
         }
       } catch (err) {
         if (
@@ -3036,42 +3052,28 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         const newBackendActivityResponse: BackendActivityResponse = await response.json();
 
         const fullNewActivity = await fetchAndSetSpecificActivityDetails(newBackendActivityResponse.id);
+        const titleForLog = (fullNewActivity?.title || newBackendActivityResponse.title) || t('unknownActivityTitle');
+        const modeForLog = (fullNewActivity?.appMode || activityData.appMode);
 
-        if (fullNewActivity && addHistoryLogEntryRef.current) {
-            const category = allCategories.find(
-              (c) => c.id === fullNewActivity.categoryId
-            );
-            addHistoryLogEntryRef.current(
-              "historyLogAddActivity",
-              {
-                activityId: fullNewActivity.id,
-                title: fullNewActivity.title || t('unknownActivityTitle'),
+        toast({
+            title: t("toastActivityAddedTitle"),
+            description: t("toastActivityAddedDescription", { activityTitle: titleForLog }),
+        });
+
+        if (addHistoryLogEntryRef.current) {
+            const finalActivityDetailsForLog = fullNewActivity || backendToFrontendActivity(newBackendActivityResponse, appModeState);
+            const category = allCategories.find((c) => c.id === finalActivityDetailsForLog.categoryId);
+            const details = {
+                activityId: finalActivityDetailsForLog.id,
+                title: titleForLog,
                 categoryName: category?.name || t('uncategorized'),
-                date: formatDateFns(new Date(fullNewActivity.createdAt), "PP", {
-                  locale: dateFnsLocale,
-                }),
-                time: fullNewActivity.time || t('timeNotSet'),
-                mode: fullNewActivity.appMode || t('unknownText'),
-              },
-              fullNewActivity.appMode
-            );
-            toast({
-                title: t("toastActivityAddedTitle"),
-                description: t("toastActivityAddedDescription", { activityTitle: fullNewActivity.title || t('unknownActivityTitle') }),
-            });
-        } else if (addHistoryLogEntryRef.current) {
-            const createdActivityForLog = backendToFrontendActivity(newBackendActivityResponse, appModeState);
-            const category = allCategories.find(c => c.id === createdActivityForLog.categoryId);
-            addHistoryLogEntryRef.current("historyLogAddActivity", {
-                activityId: createdActivityForLog.id,
-                title: createdActivityForLog.title || t('unknownActivityTitle'),
-                categoryName: category?.name || t('uncategorized'),
-                date: formatDateFns(new Date(createdActivityForLog.createdAt), "PP", { locale: dateFnsLocale }),
-                time: createdActivityForLog.time || t('timeNotSet'),
-                mode: createdActivityForLog.appMode || t('unknownText'),
-            }, createdActivityForLog.appMode);
-            toast({ title: t("toastActivityAddedTitle"), description: t("toastActivityAddedDescription", { activityTitle: createdActivityForLog.title || t('unknownActivityTitle') }) });
-            console.warn(`[AppProvider] addActivity: Successfully created activity ID ${newBackendActivityResponse.id}, but failed to fetch full details immediately after. State might be partially updated.`);
+                date: formatDateFns(new Date(finalActivityDetailsForLog.createdAt), "PP", { locale: dateFnsLocale }),
+                time: finalActivityDetailsForLog.time || t('timeNotSet'),
+                mode: modeForLog,
+            };
+            addHistoryLogEntryRef.current("historyLogAddActivity", details, modeForLog);
+        } else {
+            console.warn(`[AppProvider] addActivity: Successfully created activity ID ${newBackendActivityResponse.id}, but history log function not available.`);
         }
 
       } catch (err) {
@@ -3267,51 +3269,60 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         
         const originalForLog = originalActivityData || currentActivityToUpdate; 
 
-        const oldCat = allCategories.find(c => c.id === originalForLog.categoryId);
-        const newCat = allCategories.find(c => c.id === updatedFullActivity.categoryId);
-
-        const changesSummary = generateChangeList(
-            { 
-                title: originalForLog.title, 
-                categoryName: oldCat?.name,
+        let changesSummary = t('detailsNotAvailable');
+        if (originalForLog) {
+            const oldCatName = allCategories.find(c => c.id === originalForLog.categoryId)?.name;
+            const newCatName = allCategories.find(c => c.id === updatedFullActivity.categoryId)?.name;
+            
+            const oldDetails = {
+                title: originalForLog.title,
+                categoryName: oldCatName,
                 date: originalForLog.createdAt,
                 time: originalForLog.time,
                 notes: originalForLog.notes,
-                responsiblePersonIds: originalForLog.responsiblePersonIds,
-                recurrence: originalForLog.recurrence ? JSON.stringify(originalForLog.recurrence) : undefined 
-            },
-            { 
+                recurrence: JSON.stringify(originalForLog.recurrence),
+            };
+            const newDetails = {
                 title: updatedFullActivity.title,
-                categoryName: newCat?.name,
+                categoryName: newCatName,
                 date: updatedFullActivity.createdAt,
                 time: updatedFullActivity.time,
                 notes: updatedFullActivity.notes,
-                responsiblePersonIds: updatedFullActivity.responsiblePersonIds,
-                recurrence: updatedFullActivity.recurrence ? JSON.stringify(updatedFullActivity.recurrence) : undefined
-            },
-            {
-                title: { labelKey: 'titleLabel' },
-                categoryName: {labelKey: 'categoryLabel' },
-                date: { labelKey: 'dateLabel', formatter: (val) => formatDateFns(new Date(val), "PP", { locale: dateFnsLocale }) },
-                time: { labelKey: 'timeLabel' },
-                notes: { labelKey: 'notesLabel' },
-                responsiblePersonIds: { labelKey: 'responsiblePeopleLabelShort', formatter: (val) => (Array.isArray(val) ? val.join(', ') : t('notSetValuePlaceholder')) },
-                recurrence: { labelKey: 'recurrenceLabelShort' }
-            }
-        );
+                recurrence: JSON.stringify(updatedFullActivity.recurrence),
+            };
+
+            changesSummary = generateChangeList(
+                oldDetails,
+                newDetails,
+                {
+                    title: { labelKey: 'titleLabel' },
+                    categoryName: { labelKey: 'categoryLabel' },
+                    date: { labelKey: 'dateLabel', formatter: (val) => val ? formatDateFns(new Date(val), "PP", { locale: dateFnsLocale }) : '' },
+                    time: { labelKey: 'timeLabel' },
+                    notes: { labelKey: 'notesLabel' },
+                    recurrence: { labelKey: 'recurrenceLabelShort' },
+                }
+            ) || t('noDetailedChangesLogged');
+        }
+
+        const titleForLog = updatedFullActivity.title || t('unknownActivityTitle');
+        const modeForLog = updatedFullActivity.appMode || 'personal';
 
         if (addHistoryLogEntryRef.current) {
-            addHistoryLogEntryRef.current("historyLogUpdateActivity", { 
-                activityId: activityId, 
-                title: updatedFullActivity.title || t('unknownActivityTitle'), 
-                mode: updatedFullActivity.appMode,
-                changesSummary
-            }, updatedFullActivity.appMode);
+            const details = {
+                activityId: activityId,
+                title: titleForLog,
+                mode: modeForLog,
+                changesSummary: changesSummary
+            };
+            addHistoryLogEntryRef.current("historyLogUpdateActivity", details, modeForLog);
         }
+        
         toast({
             title: t("toastActivityUpdatedTitle"),
-            description: t("toastActivityUpdatedDescription", { activityTitle: updatedFullActivity.title || t('unknownActivityTitle') }),
+            description: t("toastActivityUpdatedDescription", { activityTitle: titleForLog }),
         });
+
       } catch (err) {
         if (
           err instanceof Error &&
@@ -3355,12 +3366,10 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         (a) => a.id === activityId
       );
       let setter = setPersonalActivities;
-      let modeForLog: AppMode = "personal";
 
       if (!activityToDelete) {
         activityToDelete = workActivities.find((a) => a.id === activityId);
         setter = setWorkActivities;
-        modeForLog = "work";
       }
 
       if (!activityToDelete || activityToDelete.isSummary) { 
@@ -3369,30 +3378,27 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
             console.error("[AppProvider] Activity not found for deletion, even after fetch:", activityId);
             toast({ variant: "destructive", title: "Error", description: "Activity not found for deletion."});
              if (addHistoryLogEntryRef.current && activityToDelete) { 
-                addHistoryLogEntryRef.current(
-                    "historyLogDeleteActivity",
-                    {
-                        activityId: activityId,
-                        title: activityToDelete.title || t('unknownActivityTitle'),
-                        categoryName: t('uncategorized'),
-                        date: formatDateFns(new Date(activityToDelete.createdAt), "PP", { locale: dateFnsLocale }),
-                        time: activityToDelete.time || t('timeNotSet'),
-                        mode: activityToDelete.appMode || t('unknownText'),
-                    },
-                    activityToDelete.appMode || "account"
-                );
+                const details = {
+                    activityId: activityId,
+                    title: activityToDelete.title || t('unknownActivityTitle'),
+                    categoryName: t('uncategorized'),
+                    date: formatDateFns(new Date(activityToDelete.createdAt), "PP", { locale: dateFnsLocale }),
+                    time: activityToDelete.time || t('timeNotSet'),
+                    mode: activityToDelete.appMode || t('unknownText'),
+                };
+                addHistoryLogEntryRef.current("historyLogDeleteActivity", details, activityToDelete.appMode || "account");
             }
             return;
         }
         activityToDelete = fetchedFullActivity; 
         setter = activityToDelete.appMode === 'personal' ? setPersonalActivities : setWorkActivities;
-        modeForLog = activityToDelete.appMode;
       }
       
       const titleForLog = activityToDelete.title || t('unknownActivityTitle');
       const categoryForLog = allCategories.find(c => c.id === activityToDelete!.categoryId);
       const dateForLog = formatDateFns(new Date(activityToDelete.createdAt), "PP", { locale: dateFnsLocale });
       const timeForLog = activityToDelete.time || t('timeNotSet');
+      const modeForLog = activityToDelete.appMode || 'personal';
 
       try {
         const response = await fetchWithAuth(`/activities/${activityId}`, {
@@ -3418,18 +3424,15 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         });
 
         if (addHistoryLogEntryRef.current) {
-            addHistoryLogEntryRef.current(
-              "historyLogDeleteActivity",
-              {
+            const details = {
                 activityId: activityId,
                 title: titleForLog,
                 categoryName: categoryForLog?.name || t('uncategorized'),
                 date: dateForLog,
                 time: timeForLog,
-                mode: activityToDelete.appMode || t('unknownText'),
-              },
-              modeForLog
-            );
+                mode: modeForLog,
+            };
+            addHistoryLogEntryRef.current("historyLogDeleteActivity", details, modeForLog);
         }
       } catch (err) {
         if (
@@ -3645,39 +3648,36 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
 
       if (!masterActivity || masterActivity.isSummary) { 
         masterActivity = await fetchAndSetSpecificActivityDetails(masterActivityId);
-        if (!masterActivity) {
-          console.error("Master activity not found for toggling occurrence, even after fetch:", masterActivityId);
-           if (addHistoryLogEntryRef.current) {
-            addHistoryLogEntryRef.current(
-              "historyLogToggleActivityCompletion",
-              {
-                activityId: masterActivityId,
-                title: t('unknownActivityTitle'),
-                completed: completedState,
-                date: formatDateFns(new Date(occurrenceDateTimestamp), "PP", { locale: dateFnsLocale }) || t('unknownDate'),
-                time: t('timeNotSet'),
-                mode: t('unknownText'),
-              },
-              "account" 
-            );
-          }
-          return;
-        }
-        setter = masterActivity.appMode === 'personal' ? setPersonalActivities : setWorkActivities;
       }
 
-      const activityTitleForLog = masterActivity.title || t('unknownActivityTitle');
+      if (!masterActivity) {
+          console.error("[AppProvider] Master activity not found for toggling occurrence, even after fetch:", masterActivityId);
+          if (addHistoryLogEntryRef.current) {
+              const details = {
+                  activityId: masterActivityId,
+                  title: t('unknownActivityTitle'),
+                  completed: completedState,
+                  date: formatDateFns(new Date(occurrenceDateTimestamp), "PP", { locale: dateFnsLocale }),
+                  time: t('timeNotSet'),
+                  mode: t('unknownText'),
+              };
+              addHistoryLogEntryRef.current("historyLogToggleActivityCompletion", details, "account");
+          }
+          return;
+      }
+      setter = masterActivity.appMode === 'personal' ? setPersonalActivities : setWorkActivities;
+
+      const titleForLog = masterActivity.title || t('unknownActivityTitle');
       const modeForLog = masterActivity.appMode;
+      const timeForLog = masterActivity.time || t('timeNotSet');
+      const dateForLog = formatDateFns(new Date(occurrenceDateTimestamp), "PP", { locale: dateFnsLocale });
+
       const occurrenceDateKey = formatISO(new Date(occurrenceDateTimestamp), {
         representation: "date",
       });
       const occurrenceDateTimeISO = new Date(
         occurrenceDateTimestamp
       ).toISOString();
-      
-      const timeForLog = masterActivity.time || t('timeNotSet');
-      const dateForLog = formatDateFns(new Date(occurrenceDateTimestamp), "PP", { locale: dateFnsLocale }) || t('unknownDate');
-
 
       setter((prevActivities) =>
         prevActivities.map((act) =>
@@ -3777,18 +3777,15 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         );
 
         if (addHistoryLogEntryRef.current) {
-            addHistoryLogEntryRef.current(
-              "historyLogToggleActivityCompletion",
-              {
+            const details = {
                 activityId: masterActivityId,
-                title: activityTitleForLog,
+                title: titleForLog,
                 completed: completedState,
                 date: dateForLog,
                 time: timeForLog,
-                mode: modeForLog || t('unknownText'),
-              },
-              modeForLog
-            );
+                mode: modeForLog,
+            };
+            addHistoryLogEntryRef.current("historyLogToggleActivityCompletion", details, modeForLog);
         }
       } catch (err) {
         console.error("Error toggling occurrence completion:", err);
@@ -3870,18 +3867,18 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         const newBackendHabit: BackendHabit = await response.json();
         const newFrontendHabit = backendToFrontendHabit(newBackendHabit);
         setHabits((prev) => [...prev, newFrontendHabit]);
+
+        const nameForLog = newFrontendHabit.name || t('unknownHabit');
         toast({
           title: t("toastHabitAddedTitle"),
           description: t("toastHabitAddedDescription", {
-            habitName: newFrontendHabit.name || t('unknownHabit'),
+            habitName: nameForLog,
           }),
         });
+
         if (addHistoryLogEntryRef.current) {
-            addHistoryLogEntryRef.current(
-              "historyLogAddHabit",
-              { name: newFrontendHabit.name || t('unknownHabit') },
-              "habit"
-            );
+            const details = { name: nameForLog };
+            addHistoryLogEntryRef.current("historyLogAddHabit", details, "habit");
         }
       } catch (err) {
         if (
@@ -3951,29 +3948,31 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         setHabits((prev) =>
           prev.map((h) => (h.id === habitId ? updatedFrontendHabit : h))
         );
+        
+        const nameForLog = updatedFrontendHabit.name || t('unknownHabit');
         toast({
           title: t("toastHabitUpdatedTitle"),
           description: t("toastHabitUpdatedDescription", {
-            habitName: updatedFrontendHabit.name || t('unknownHabit'),
+            habitName: nameForLog,
           }),
         });
 
-        const changesSummary = originalHabit ? generateChangeList(
-            { name: originalHabit.name, iconName: originalHabit.iconName },
-            { name: updatedFrontendHabit.name, iconName: updatedFrontendHabit.iconName },
-            { name: { labelKey: 'habitNameLabel' }, iconName: { labelKey: 'habitIconNameLabel' } }
-        ) : t('detailsNotAvailable');
+        let changesSummary = t('detailsNotAvailable');
+        if (originalHabit) {
+            changesSummary = generateChangeList(
+                { name: originalHabit.name, iconName: originalHabit.iconName },
+                { name: updatedFrontendHabit.name, iconName: updatedFrontendHabit.iconName },
+                { name: { labelKey: 'habitNameLabel' }, iconName: { labelKey: 'habitIconNameLabel' } }
+            ) || t('noDetailedChangesLogged');
+        }
         
         if (addHistoryLogEntryRef.current) {
-            addHistoryLogEntryRef.current(
-              "historyLogUpdateHabit",
-              { 
+            const details = {
                 habitId: habitId,
-                name: updatedFrontendHabit.name || t('unknownHabit'), 
+                name: nameForLog, 
                 changesSummary
-              },
-              "habit"
-            );
+            };
+            addHistoryLogEntryRef.current("historyLogUpdateHabit", details, "habit");
         }
       } catch (err) {
         if (
@@ -4003,6 +4002,10 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     async (habitId: number) => {
       setError(null);
       const habitToDelete = habits.find((h) => h.id === habitId);
+      if (!habitToDelete) return;
+      
+      const nameForLog = habitToDelete.name || t('unknownHabit');
+
       try {
         const response = await fetchWithAuth(`/habits/${habitId}`, {
           method: "DELETE",
@@ -4024,20 +4027,16 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
           delete newCompletions[habitId];
           return newCompletions;
         });
-        if (habitToDelete) {
-          toast({
-            title: t("toastHabitDeletedTitle"),
-            description: t("toastHabitDeletedDescription", {
-              habitName: habitToDelete.name || t('unknownHabit'),
-            }),
-          });
-          if (addHistoryLogEntryRef.current) {
-            addHistoryLogEntryRef.current(
-              "historyLogDeleteHabit",
-              { name: habitToDelete.name || t('unknownHabit') },
-              "habit"
-            );
-          }
+
+        toast({
+          title: t("toastHabitDeletedTitle"),
+          description: t("toastHabitDeletedDescription", {
+            habitName: nameForLog,
+          }),
+        });
+        if (addHistoryLogEntryRef.current) {
+          const details = { name: nameForLog };
+          addHistoryLogEntryRef.current("historyLogDeleteHabit", details, "habit");
         }
       } catch (err) {
         if (
@@ -4140,16 +4139,13 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
         });
 
         if (addHistoryLogEntryRef.current) {
-            addHistoryLogEntryRef.current(
-              "historyLogToggleHabitCompletion",
-              {
+            const details = {
                 habitName: habitNameForLog,
                 slotName: slotNameForLog,
                 date: dateForLog,
                 completed: newCompletedState,
-              },
-              "habit"
-            );
+            };
+            addHistoryLogEntryRef.current("historyLogToggleHabitCompletion", details, "habit");
         }
       } catch (err) {
         if (
@@ -4355,5 +4351,3 @@ const refreshTokenLogicInternal = useCallback(async (): Promise<string | null> =
     <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>
   );
 };
-
-    
