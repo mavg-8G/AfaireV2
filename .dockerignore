@@ -1,0 +1,21 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+# git
+.git
+.gitignore
+Dockerfile
+README.md
+*.log
+npm-debug.log
+.vscode
+.env
+.idx
+.vscode
+.idea
