@@ -10,8 +10,10 @@
 # git
 .git
 .gitignore
+npm-debug.log
 Dockerfile
-README.md
+.dockerignore
+*.md
 *.log
 npm-debug.log
 .vscode
