@@ -23,7 +23,7 @@ RUN npm prune --production
 FROM node:24-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-ENV PORT 3000
+ENV PORT=3000
 
 # Copy standalone build and static assets
 COPY --from=builder /app/.next/standalone /app
