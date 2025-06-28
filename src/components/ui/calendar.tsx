@@ -23,14 +23,14 @@ function CustomDayContent(props: CustomDayContentProps) {
   const eventCount = dayEventCounts?.get(dayKey) ?? 0;
   const maxDots = 3;
 
-  const dayNumberEl = <>{format(date, 'd')}</>;
+  const dayNumberEl = <div className="text-base md:text-xl">{format(date, 'd')}</div>;
 
   if (!isSameMonth(date, displayMonth)) {
-    return <>{dayNumberEl}</>;
+    return <div className="h-full w-full flex items-center justify-center">{dayNumberEl}</div>;
   }
 
   return (
-    <div className="relative w-full h-full flex flex-col items-center justify-start pt-2">
+    <div className="relative w-full h-full flex flex-col items-center justify-center">
       {dayNumberEl}
       {eventCount > 0 && (
         <div className="absolute bottom-1.5 flex items-center justify-center space-x-0.5 w-full">
@@ -85,10 +85,10 @@ function Calendar({
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
         head_cell:
-          "text-muted-foreground rounded-md w-10 md:w-14 font-normal text-[0.8rem] text-center md:text-xl",
+          "text-muted-foreground rounded-md w-full font-normal text-[0.8rem] md:text-base",
         row: "flex w-full mt-2",
         cell: cn(
-          "h-10 md:h-14 w-10 md:w-14 text-center text-sm md:text-2xl p-0 relative",
+          "text-center text-sm p-0 relative",
           "[&:has([aria-selected].day-range-end)]:rounded-r-md",
           "[&:has([aria-selected].day-outside)]:bg-accent/50",
           "[&:has([aria-selected])]:bg-primary", 
@@ -98,7 +98,7 @@ function Calendar({
         ),
         day: cn(
           buttonVariants({ variant: "ghost" }),
-          "h-10 md:h-14 w-10 md:w-14 p-0 font-normal aria-selected:opacity-100"
+          "h-14 w-14 md:h-20 md:w-20 p-0 font-normal aria-selected:opacity-100"
         ),
         day_range_end: "day-range-end",
         day_selected:
