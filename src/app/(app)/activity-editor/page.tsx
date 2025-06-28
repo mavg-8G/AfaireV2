@@ -97,10 +97,11 @@ export default function ActivityEditorPage() {
       { id: 6, labelKey: 'daySat' },
     ];
     const weekStartsOn = dateLocale.options?.weekStartsOn ?? 0;
-    if (weekStartsOn > 0 && weekStartsOn < 7) {
-      return [...allDays.slice(weekStartsOn), ...allDays.slice(0, weekStartsOn)];
+    const ordered = [];
+    for (let i = 0; i < 7; i++) {
+        ordered.push(allDays[(weekStartsOn + i) % 7]);
     }
-    return allDays;
+    return ordered;
   }, [dateLocale]);
 
   const activityFormSchema = z.object({
