@@ -24,7 +24,7 @@ interface ActivityListItemProps {
   instanceDate?: Date;
 }
 
-export default function ActivityListItem({ activity, category, onEdit, onDelete, showDate, instanceDate }: ActivityListItemProps) {
+export default function ActivityListItem({ activity, category, onEdit, onDelete, showDate = false, instanceDate }: ActivityListItemProps) {
   const { toggleOccurrenceCompletion, updateTodoInActivity, getRawActivities } = useAppStore();
   const { t, locale } = useTranslations();
   const router = useRouter();
@@ -156,7 +156,7 @@ export default function ActivityListItem({ activity, category, onEdit, onDelete,
         <CardContent className="px-3 pt-1 pb-2 pl-9 space-y-1">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
             {category && (
-              <Badge variant={isCompletedForThisOccurrence ? "outline-solid" : "secondary"} className="text-xs py-0.5 px-1.5">
+              <Badge variant={isCompletedForThisOccurrence ? "outline" : "secondary"} className="text-xs py-0.5 px-1.5">
                 {category.icon && <category.icon className="mr-1 h-3 w-3" />}
                 {category.name}
               </Badge>
