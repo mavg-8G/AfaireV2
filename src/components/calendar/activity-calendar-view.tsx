@@ -218,7 +218,10 @@ export default function ActivityCalendarView() {
     return enUS;
   }, [locale]);
   
-  const weekStartsOn = useMemo(() => dateLocale.options?.weekStartsOn ?? 0, [dateLocale]);
+  const weekStartsOn = useMemo(() => {
+    if (locale === 'es' || locale === 'fr') return 1; // Monday
+    return 0; // Sunday for 'en' and default
+  }, [locale]);
 
   useEffect(() => {
     setHasMounted(true);

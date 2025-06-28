@@ -96,13 +96,13 @@ export default function ActivityEditorPage() {
       { id: 3, labelKey: 'dayWed' }, { id: 4, labelKey: 'dayThu' }, { id: 5, labelKey: 'dayFri' },
       { id: 6, labelKey: 'daySat' },
     ];
-    const weekStartsOn = dateLocale.options?.weekStartsOn ?? 0;
+    const weekStartsOn = (locale === 'es' || locale === 'fr') ? 1 : 0; // 1 for Monday, 0 for Sunday
     const ordered = [];
     for (let i = 0; i < 7; i++) {
         ordered.push(allDays[(weekStartsOn + i) % 7]);
     }
     return ordered;
-  }, [dateLocale]);
+  }, [locale]);
 
   const activityFormSchema = z.object({
     title: z.string().min(1, t('activityTitleLabel')),
