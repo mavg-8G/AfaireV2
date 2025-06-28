@@ -218,11 +218,6 @@ export default function ActivityCalendarView() {
     return enUS;
   }, [locale]);
   
-  const weekStartsOn = useMemo(() => {
-    if (locale === 'es' || locale === 'fr') return 1; // Monday
-    return 0; // Sunday for 'en' and default
-  }, [locale]);
-
   useEffect(() => {
     setHasMounted(true);
     const today = new Date();
@@ -575,7 +570,6 @@ export default function ActivityCalendarView() {
                 onMonthChange={setCurrentDisplayMonth}
                 className="p-1 sm:p-3 rounded-md"
                 locale={dateLocale}
-                weekStartsOn={weekStartsOn as 0 | 1 | 2 | 3 | 4 | 5 | 6}
                 footer={todayButtonFooter}
                 dayEventCounts={processedDayEventCounts}
                 />
