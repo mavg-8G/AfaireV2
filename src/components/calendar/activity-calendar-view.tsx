@@ -545,7 +545,7 @@ export default function ActivityCalendarView() {
                 <Skeleton className="h-10 w-full" />
             </div>
           </CardHeader>
-          <CardContent className="flex-grow">
+          <CardContent className="grow">
             <div className="space-y-3 py-4">
               <Skeleton className="h-16 w-full" />
               <Skeleton className="h-16 w-full" />
@@ -557,7 +557,7 @@ export default function ActivityCalendarView() {
   }
 
   return (
-    <div className="relative flex-grow">
+    <div className="relative grow">
       <div className="container mx-auto py-6 flex flex-col lg:flex-row gap-6 items-start">
         <Card className="lg:w-1/2 xl:w-2/3 shadow-lg w-full">
           <CardContent className="p-0 sm:p-1 flex justify-center">
@@ -601,7 +601,7 @@ export default function ActivityCalendarView() {
               </Tabs>
             </div>
           </CardHeader>
-          <CardContent className="flex-grow">
+          <CardContent className="grow">
             {isLoadingViewData ? (
                 <div className="flex items-center justify-center h-[calc(100vh-28rem)] sm:h-[calc(100vh-26rem)]">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />

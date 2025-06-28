@@ -134,7 +134,7 @@ export default function AppHeader() {
       <DropdownMenuSeparator />
       {sortedNotifications.length > 0 ? (
         <>
-          <ScrollArea className="flex-grow overflow-y-auto pr-1 max-h-[calc(70vh-100px)]">
+          <ScrollArea className="grow overflow-y-auto pr-1 max-h-[calc(70vh-100px)]">
             {sortedNotifications.map(notification => (
               <DropdownMenuItem
                 key={notification.id}
@@ -156,7 +156,7 @@ export default function AppHeader() {
           <DropdownMenuItem onClick={markAllUINotificationsAsRead} disabled={unreadNotificationsCount === 0}>
             <CheckCircle className="mr-2 h-4 w-4" /> {t('markAllAsRead')}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={clearAllUINotifications} className="text-destructive hover:!bg-destructive/10">
+          <DropdownMenuItem onClick={clearAllUINotifications} className="text-destructive hover:bg-destructive/10!">
              <Trash className="mr-2 h-4 w-4" /> {t('clearAllNotifications')}
           </DropdownMenuItem>
         </>
@@ -256,7 +256,7 @@ export default function AppHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur-sm supports-backdrop-filter:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
           {/* Left Group */}
           <Link href="/" className="flex items-center gap-2 ml-4 text-xl font-bold tracking-tight text-foreground hover:no-underline sm:text-2xl" aria-label="Home">

@@ -78,7 +78,7 @@ export default function ActivityListItem({ activity, category, onEdit, onDelete,
 
   return (
     <Card className={cn(
-      "shadow-sm hover:shadow-md transition-shadow duration-150 ease-in-out",
+      "shadow-xs hover:shadow-md transition-shadow duration-150 ease-in-out",
       isCompletedForThisOccurrence && "bg-muted/50 opacity-75"
     )}>
       <CardHeader className="flex flex-row items-center justify-between py-2 px-3 space-y-0">
@@ -156,7 +156,7 @@ export default function ActivityListItem({ activity, category, onEdit, onDelete,
         <CardContent className="px-3 pt-1 pb-2 pl-9 space-y-1">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
             {category && (
-              <Badge variant={isCompletedForThisOccurrence ? "outline" : "secondary"} className="text-xs py-0.5 px-1.5">
+              <Badge variant={isCompletedForThisOccurrence ? "outline-solid" : "secondary"} className="text-xs py-0.5 px-1.5">
                 {category.icon && <category.icon className="mr-1 h-3 w-3" />}
                 {category.name}
               </Badge>

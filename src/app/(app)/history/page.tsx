@@ -126,7 +126,7 @@ export default function HistoryPage() {
               <ScrollArea className="h-[calc(100vh-20rem)] pr-2">
                 {sortedDateKeys.map((dateKey) => (
                   <div key={dateKey} className="mb-6">
-                    <h2 className="text-lg font-semibold text-primary mb-3 sticky top-0 bg-background/90 backdrop-blur-sm py-2 z-10 border-b">
+                    <h2 className="text-lg font-semibold text-primary mb-3 sticky top-0 bg-background/90 backdrop-blur-xs py-2 z-10 border-b">
                       {formatDateHeader(dateKey)}
                     </h2>
                     <ul className="space-y-4">
@@ -157,7 +157,7 @@ export default function HistoryPage() {
                         const formattedTime = formatTimestampForDisplay(entry.timestamp);
 
                         return (
-                          <li key={entry.id} className="flex items-start space-x-3 p-3 bg-muted/30 rounded-lg shadow-sm border">
+                          <li key={entry.id} className="flex items-start space-x-3 p-3 bg-muted/30 rounded-lg shadow-xs border">
                             <div className={cn("mt-1 p-1.5 rounded-full text-white shrink-0", scopeInfo.color)}>
                               <scopeInfo.icon className="h-4 w-4" />
                             </div>

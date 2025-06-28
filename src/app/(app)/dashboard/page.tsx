@@ -832,7 +832,7 @@ export default function DashboardPage() {
                       } else { 
                         const habitItem = dashboardItem as HabitDashboardItem;
                         return (
-                           <Card key={habitItem.id} className={cn("shadow-sm p-0", habitItem.isCompleted && "opacity-70")}>
+                           <Card key={habitItem.id} className={cn("shadow-xs p-0", habitItem.isCompleted && "opacity-70")}>
                              <HabitListItem
                                 habit={habitItem.item.habit}
                                 slot={habitItem.item.slot}

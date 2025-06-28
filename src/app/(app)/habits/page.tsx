@@ -289,7 +289,7 @@ export default function ManageHabitsPage() {
                 <ScrollArea className="h-full pr-1"> 
                   <ul className="space-y-3">
                     {habits.map((habit) => (
-                      <li key={habit.id} className="flex items-start justify-between p-3 bg-muted/50 rounded-md shadow-sm">
+                      <li key={habit.id} className="flex items-start justify-between p-3 bg-muted/50 rounded-md shadow-xs">
                         <div className="grow min-w-0">
                           <div className="flex items-center gap-3 mb-1">
                             <habit.icon className="h-6 w-6 text-primary shrink-0" />

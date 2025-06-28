@@ -33,7 +33,7 @@ export default function HabitListItem({ habit, slot, date, completionStatus, onT
 
   return (
     <div className={cn(
-      "flex items-center justify-between p-2.5 rounded-md border bg-card shadow-sm hover:shadow-md transition-shadow duration-150 ease-in-out",
+      "flex items-center justify-between p-2.5 rounded-md border bg-card shadow-xs hover:shadow-md transition-shadow duration-150 ease-in-out",
       isCompleted && "bg-muted/60 opacity-80"
     )}>
       <div className="flex items-center gap-3 grow min-w-0">

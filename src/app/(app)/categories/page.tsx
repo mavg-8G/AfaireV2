@@ -234,7 +234,7 @@ export default function ManageCategoriesPage() {
                 <ScrollArea className="h-full pr-1"> 
                   <ul className="space-y-3">
                     {filteredCategories.map((category) => (
-                      <li key={category.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-md shadow-sm">
+                      <li key={category.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-md shadow-xs">
                         <div className="flex items-center gap-3">
                           <category.icon className="h-6 w-6 text-primary" />
                           <span className="font-medium">{category.name}</span>

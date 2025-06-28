@@ -24,7 +24,7 @@ export default function AppFooter() {
   }
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 w-full p-6 bg-background/90 backdrop-blur-sm border-t border-border/30 text-xs text-muted-foreground z-40">
+    <footer className="fixed bottom-0 left-0 right-0 w-full p-6 bg-background/90 backdrop-blur-xs border-t border-border/30 text-xs text-muted-foreground z-40">
       <p className="italic text-left md:text-center">{currentPhrase}</p>
     </footer>
   );

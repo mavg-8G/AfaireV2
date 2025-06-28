@@ -347,13 +347,13 @@ export default function ActivityEditorPage() {
                       <Popover open={isStartDatePopoverOpen} onOpenChange={setIsStartDatePopoverOpen}>
                         <PopoverTrigger asChild>
                           <FormControl>
-                            <Button variant={"outline"} disabled={isSubmittingForm} className={cn("w-full pl-3 text-left font-normal truncate whitespace-nowrap",!field.value && "text-muted-foreground")}>
+                            <Button variant={"outline-solid"} disabled={isSubmittingForm} className={cn("w-full pl-3 text-left font-normal truncate whitespace-nowrap",!field.value && "text-muted-foreground")}>
                               {field.value ? format(field.value, "PPP", { locale: dateLocale }) : <span>{t('pickADate')}</span>}
                               <CalendarIcon className="ml-auto h-4 w-4 opacity-50 shrink-0" />
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 max-h-[calc(100vh-12rem)] overflow-y-auto z-[70]" align="start">
+                        <PopoverContent className="w-auto p-0 max-h-[calc(100vh-12rem)] overflow-y-auto z-70" align="start">
                           <Calendar mode="single" selected={field.value} onSelect={(selectedDate) => {
                               if (selectedDate) {
                                 const normalizedSelectedDate = normalizeToLocalMidnight(selectedDate);
@@ -483,13 +483,13 @@ export default function ActivityEditorPage() {
                       <Popover open={isRecurrenceEndDatePopoverOpen} onOpenChange={setIsRecurrenceEndDatePopoverOpen}>
                         <PopoverTrigger asChild>
                           <FormControl>
-                            <Button variant={"outline"} disabled={isSubmittingForm} className={cn("w-full pl-3 text-left font-normal justify-start truncate whitespace-nowrap", !field.value && "text-muted-foreground")}>
+                            <Button variant={"outline-solid"} disabled={isSubmittingForm} className={cn("w-full pl-3 text-left font-normal justify-start truncate whitespace-nowrap", !field.value && "text-muted-foreground")}>
                               <CalendarIcon className="mr-2 h-4 w-4 opacity-50 shrink-0" />
                               {field.value ? format(field.value, "PPP", { locale: dateLocale }) : <span>{t('recurrenceNoEndDate')}</span>}
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 max-h-[calc(100vh-12rem)] overflow-y-auto z-[70]" align="start">
+                        <PopoverContent className="w-auto p-0 max-h-[calc(100vh-12rem)] overflow-y-auto z-70" align="start">
                           <Calendar mode="single" selected={field.value || undefined}
                             onSelect={(date) => { 
                                 if (date) field.onChange(normalizeToLocalMidnight(date)); 
