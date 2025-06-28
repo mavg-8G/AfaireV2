@@ -29,7 +29,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { useTranslations } from '@/contexts/language-context';
-import { enUS, es, fr } from 'date-fns/locale';
+import { enUS, es, fr, type Locale as DateFnsLocale } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 import { v4 as uuidv4 } from 'uuid';
 import { cn } from '@/lib/utils';
@@ -60,7 +60,8 @@ interface ProcessedHabitSlotDisplayItem {
 function generateRecurringInstances(
   masterActivity: Activity,
   viewStartDate: Date,
-  viewEndDate: Date
+  viewEndDate: Date,
+  dateLocale: DateFnsLocale
 ): Activity[] {
   if (!masterActivity.recurrence || masterActivity.recurrence.type === 'none') {
     const activityDate = new Date(masterActivity.createdAt);
@@ -78,12 +79,13 @@ function generateRecurringInstances(
   const instances: Activity[] = [];
   const recurrence = masterActivity.recurrence;
   let currentDate = new Date(masterActivity.createdAt);
+  const weekStartsOn = dateLocale.options?.weekStartsOn ?? 0;
 
   if (isBefore(currentDate, viewStartDate)) {
       if (recurrence.type === 'daily') {
           currentDate = viewStartDate;
       } else if (recurrence.type === 'weekly' && recurrence.daysOfWeek && recurrence.daysOfWeek.length > 0) {
-          let tempDate = startOfWeek(viewStartDate, { weekStartsOn: 0 });
+          let tempDate = startOfWeek(viewStartDate, { weekStartsOn: weekStartsOn as 0 | 1 | 2 | 3 | 4 | 5 | 6 });
           while(isBefore(tempDate, new Date(masterActivity.createdAt)) || !recurrence.daysOfWeek.includes(getDay(tempDate))) {
               tempDate = addDays(tempDate, 1);
               if (isAfter(tempDate, viewEndDate) && isAfter(tempDate, currentDate)) break;
@@ -215,6 +217,8 @@ export default function ActivityCalendarView() {
     if (locale === 'fr') return fr;
     return enUS;
   }, [locale]);
+  
+  const weekStartsOn = useMemo(() => dateLocale.options?.weekStartsOn ?? 0, [dateLocale]);
 
   useEffect(() => {
     setHasMounted(true);
@@ -284,7 +288,7 @@ export default function ActivityCalendarView() {
         let allDisplayActivities: Activity[] = [];
         masterActivitiesForProcessing.forEach(masterActivity => {
           if (masterActivity.recurrence && masterActivity.recurrence.type !== 'none') {
-            allDisplayActivities.push(...generateRecurringInstances(masterActivity, viewStartDate, viewEndDate));
+            allDisplayActivities.push(...generateRecurringInstances(masterActivity, viewStartDate, viewEndDate, dateLocale));
           } else {
             const activityDate = new Date(masterActivity.createdAt);
             if (isWithinInterval(activityDate, { start: viewStartDate, end: viewEndDate }) || isSameDay(activityDate, viewStartDate) || isSameDay(activityDate, viewEndDate) ) {
@@ -401,7 +405,7 @@ export default function ActivityCalendarView() {
 
     rawActivities.forEach(activity => {
       if (activity.recurrence && activity.recurrence.type !== 'none') {
-        const instances = generateRecurringInstances(activity, displayRangeStart, displayRangeEnd);
+        const instances = generateRecurringInstances(activity, displayRangeStart, displayRangeEnd, dateLocale);
         instances.forEach(inst => {
           if (inst.originalInstanceDate) {
             const dateKey = formatISO(new Date(inst.originalInstanceDate), { representation: 'date' });
@@ -418,7 +422,7 @@ export default function ActivityCalendarView() {
     });
     setProcessedDayEventCounts(counts);
     setIsLoadingEventCounts(false);
-  }, [getRawActivities, hasMounted, currentDisplayMonth, isAppStoreLoading]);
+  }, [getRawActivities, hasMounted, currentDisplayMonth, isAppStoreLoading, dateLocale]);
 
 
   const handleEditActivity = (activityInstanceOrMaster: Activity) => {
@@ -567,6 +571,7 @@ export default function ActivityCalendarView() {
                 onMonthChange={setCurrentDisplayMonth}
                 className="p-1 sm:p-3 rounded-md"
                 locale={dateLocale}
+                weekStartsOn={weekStartsOn as 0 | 1 | 2 | 3 | 4 | 5 | 6}
                 footer={todayButtonFooter}
                 dayEventCounts={processedDayEventCounts}
                 />
@@ -708,4 +713,6 @@ export default function ActivityCalendarView() {
     </div>
   );
 }
+    
+
     

@@ -37,7 +37,7 @@ import {
   getDate as getDayOfMonthFn,
   setDate as setDayOfMonth
 } from 'date-fns';
-import { enUS, es, fr } from 'date-fns/locale';
+import { enUS, es, fr, type Locale as DateFnsLocale } from 'date-fns/locale';
 import { ArrowLeft, LayoutDashboard, ListChecks, BarChart3, CheckCircle, Circle, TrendingUp, LineChart, ActivityIcon, Flame, Package, TrendingDown, Brain } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -72,7 +72,8 @@ interface ProcessedHabitSlotOccurrence {
 function generateDashboardActivityInstances(
   masterActivity: Activity,
   viewStartDate: Date,
-  viewEndDate: Date
+  viewEndDate: Date,
+  dateLocale: DateFnsLocale
 ): Activity[] {
   if (!masterActivity.recurrence || masterActivity.recurrence.type === 'none') {
     const activityDate = new Date(masterActivity.createdAt);
@@ -90,12 +91,13 @@ function generateDashboardActivityInstances(
   const instances: Activity[] = [];
   const recurrence = masterActivity.recurrence;
   let currentDate = new Date(masterActivity.createdAt);
+   const weekStartsOn = dateLocale.options?.weekStartsOn ?? 0;
 
    if (isBefore(currentDate, viewStartDate)) {
       if (recurrence.type === 'daily') {
           currentDate = viewStartDate;
       } else if (recurrence.type === 'weekly' && recurrence.daysOfWeek && recurrence.daysOfWeek.length > 0) {
-          let tempDate = startOfWeek(viewStartDate, { weekStartsOn: 0 /* Sunday */ });
+          let tempDate = startOfWeek(viewStartDate, { weekStartsOn: weekStartsOn as 0 | 1 | 2 | 3 | 4 | 5 | 6 });
           while(isBefore(tempDate, new Date(masterActivity.createdAt)) || !recurrence.daysOfWeek.includes(getDayOfWeekFn(tempDate)) || isBefore(tempDate, viewStartDate) ) {
               tempDate = addDaysFns(tempDate, 1);
               if (isAfter(tempDate, viewEndDate) && isAfter(tempDate, new Date(masterActivity.createdAt))) break;
@@ -295,7 +297,7 @@ export default function DashboardPage() {
         let totalActivitiesThisDay = 0;
         let completedActivitiesThisDay = 0;
         rawMasterActivities.forEach(masterActivity => {
-          const instances = generateDashboardActivityInstances(masterActivity, dayStart, dayEnd);
+          const instances = generateDashboardActivityInstances(masterActivity, dayStart, dayEnd, dateLocale);
           instances.forEach(instance => {
             if (instance.originalInstanceDate && isSameDay(new Date(instance.originalInstanceDate), currentDateForChart)) {
               totalActivitiesThisDay++;
@@ -329,7 +331,7 @@ export default function DashboardPage() {
         let totalActivitiesThisWeek = 0;
         let completedActivitiesThisWeek = 0;
         rawMasterActivities.forEach(masterActivity => {
-          const instances = generateDashboardActivityInstances(masterActivity, actualWeekStart, actualWeekEnd);
+          const instances = generateDashboardActivityInstances(masterActivity, actualWeekStart, actualWeekEnd, dateLocale);
           instances.forEach(instance => {
             totalActivitiesThisWeek++;
             if (isActivityInstanceCompleted(instance, rawMasterActivities)) {
@@ -423,7 +425,7 @@ export default function DashboardPage() {
 
     // Process Activities
     rawMasterActivities.forEach(masterActivity => {
-      generateDashboardActivityInstances(masterActivity, rangeStartDate, rangeEndDate)
+      generateDashboardActivityInstances(masterActivity, rangeStartDate, rangeEndDate, dateLocale)
         .forEach(instance => {
           allDisplayItems.push({
             type: 'activity',
@@ -462,7 +464,7 @@ export default function DashboardPage() {
 
       return a.title.localeCompare(b.title);
     });
-  }, [getRawActivities, habits, habitCompletions, listViewTimeRange, hasMounted, getCategoryById]);
+  }, [getRawActivities, habits, habitCompletions, listViewTimeRange, hasMounted, getCategoryById, dateLocale]);
 
 
   const productivityData = useMemo(() => {
@@ -491,7 +493,7 @@ export default function DashboardPage() {
 
     let relevantActivityInstances: Activity[] = [];
     rawMasterActivities.forEach(masterActivity => {
-      relevantActivityInstances.push(...generateDashboardActivityInstances(masterActivity, rangeStartDateFilter, rangeEndDateFilter));
+      relevantActivityInstances.push(...generateDashboardActivityInstances(masterActivity, rangeStartDateFilter, rangeEndDateFilter, dateLocale));
     });
     const relevantHabitSlots = generateHabitSlotOccurrencesForRange(habits, habitCompletions, rangeStartDateFilter, rangeEndDateFilter);
     
@@ -593,7 +595,7 @@ export default function DashboardPage() {
       peakProductivityDays: peakDays,
       daysWithMostFailures,
     };
-  }, [getRawActivities, habits, habitCompletions, productivityViewTimeRange, hasMounted, getCategoryById, t]);
+  }, [getRawActivities, habits, habitCompletions, productivityViewTimeRange, hasMounted, getCategoryById, t, dateLocale]);
 
   const streakData = useMemo(() => {
     if (!hasMounted) return { currentStreak: 0, longestStreak: 0 };
@@ -608,7 +610,7 @@ export default function DashboardPage() {
         const dateKey = formatISO(day, {representation: 'date'});
         
         const activityInstancesToday = rawMasterActivities.flatMap(master => 
-            generateDashboardActivityInstances(master, day, endOfDay(day))
+            generateDashboardActivityInstances(master, day, endOfDay(day), dateLocale)
         );
         const habitSlotsToday = generateHabitSlotOccurrencesForRange(habits, habitCompletions, day, endOfDay(day));
 
@@ -674,7 +676,7 @@ export default function DashboardPage() {
     }
 
     return { currentStreak: currentStreakVal, longestStreak: longestStreakVal };
-  }, [getRawActivities, habits, habitCompletions, hasMounted]);
+  }, [getRawActivities, habits, habitCompletions, hasMounted, dateLocale]);
 
 
   const activityCategoryChartBars: ChartBarProps[] = [ { dataKey: 'count', fillVariable: '--chart-1', nameKey: 'dashboardActivityCountLabel', radius: [4,4,0,0] } ];
@@ -995,5 +997,7 @@ export default function DashboardPage() {
   );
 }
 
+
+    
 
     
