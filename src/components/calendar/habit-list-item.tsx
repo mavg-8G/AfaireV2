@@ -36,7 +36,7 @@ export default function HabitListItem({ habit, slot, date, completionStatus, onT
       "flex items-center justify-between p-2.5 rounded-md border bg-card shadow-sm hover:shadow-md transition-shadow duration-150 ease-in-out",
       isCompleted && "bg-muted/60 opacity-80"
     )}>
-      <div className="flex items-center gap-3 flex-grow min-w-0">
+      <div className="flex items-center gap-3 grow min-w-0">
         <Checkbox
           id={uniqueId}
           checked={isCompleted}
@@ -45,7 +45,7 @@ export default function HabitListItem({ habit, slot, date, completionStatus, onT
           }}
           aria-labelledby={`${uniqueId}-label`}
         />
-        <div className="flex flex-col flex-grow min-w-0">
+        <div className="flex flex-col grow min-w-0">
           <Label
             htmlFor={uniqueId}
             id={`${uniqueId}-label`}
@@ -84,4 +84,3 @@ export default function HabitListItem({ habit, slot, date, completionStatus, onT
     </div>
   );
 }
-

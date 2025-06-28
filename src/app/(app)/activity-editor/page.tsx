@@ -349,7 +349,7 @@ export default function ActivityEditorPage() {
                           <FormControl>
                             <Button variant={"outline"} disabled={isSubmittingForm} className={cn("w-full pl-3 text-left font-normal truncate whitespace-nowrap",!field.value && "text-muted-foreground")}>
                               {field.value ? format(field.value, "PPP", { locale: dateLocale }) : <span>{t('pickADate')}</span>}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50 flex-shrink-0" />
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50 shrink-0" />
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
@@ -484,7 +484,7 @@ export default function ActivityEditorPage() {
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button variant={"outline"} disabled={isSubmittingForm} className={cn("w-full pl-3 text-left font-normal justify-start truncate whitespace-nowrap", !field.value && "text-muted-foreground")}>
-                              <CalendarIcon className="mr-2 h-4 w-4 opacity-50 flex-shrink-0" />
+                              <CalendarIcon className="mr-2 h-4 w-4 opacity-50 shrink-0" />
                               {field.value ? format(field.value, "PPP", { locale: dateLocale }) : <span>{t('recurrenceNoEndDate')}</span>}
                             </Button>
                           </FormControl>
@@ -531,7 +531,7 @@ export default function ActivityEditorPage() {
                           </FormItem>
                       )}/>
                       <FormField control={form.control} name={`todos.${index}.text`} render={({ field: todoField }) => (
-                          <FormItem className="flex-grow">
+                          <FormItem className="grow">
                             <Label htmlFor={`todo-text-${index}`} id={`todo-text-label-${index}`} className="sr-only">Todo text {index + 1}</Label>
                             <FormControl><Input id={`todo-text-${index}`} placeholder={t('newTodoPlaceholder')} {...todoField} disabled={isSubmittingForm}/></FormControl>
                             <FormMessage />

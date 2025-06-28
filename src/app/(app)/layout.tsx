@@ -30,15 +30,14 @@ export default function AuthenticatedAppLayout({
   }
 
   return (
-    <div className="flex flex-col flex-grow min-h-screen">
+    <div className="flex flex-col grow min-h-screen">
       <AppHeader />
       {/* Add padding-bottom to main to account for the fixed footer height */}
       {/* Footer p-6 height ~4rem, pb-20 (5rem) should be enough */}
-      <main className="flex-grow pb-20"> 
+      <main className="grow pb-20"> 
         {children}
       </main>
       <AppFooter /> {/* Render the AppFooter here */}
     </div>
   );
 }
-

@@ -121,8 +121,8 @@ export default function ManageCategoriesPage() {
   const iconNameDescription = iconNameDescKey.replace('<a>lucide.dev/icons</a>', linkPart);
 
   return (
-    <div className="flex flex-col flex-grow min-h-screen">
-      <main className="flex-grow container mx-auto py-8 px-4">
+    <div className="flex flex-col grow min-h-screen">
+      <main className="grow container mx-auto py-8 px-4">
         <div className="mb-6 flex justify-start">
           <Link href="/" passHref>
             <Button variant="outline">
@@ -207,7 +207,7 @@ export default function ManageCategoriesPage() {
                     )}
                   />
                   <div className="flex space-x-2">
-                    <Button type="submit" className="flex-grow" disabled={isSubmitting || isAppLoading}>
+                    <Button type="submit" className="grow" disabled={isSubmitting || isAppLoading}>
                       {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (editingCategory ? <Edit3 className="mr-2 h-5 w-5" /> : <PlusCircle className="mr-2 h-5 w-5" />)}
                       {editingCategory ? t('saveChanges') : t('addCategory')}
                     </Button>
@@ -228,7 +228,7 @@ export default function ManageCategoriesPage() {
               <CardTitle>{t('existingCategories')}</CardTitle>
               <CardDescription>{t('viewEditManageCategories')}</CardDescription>
             </CardHeader>
-            <CardContent className="flex-grow">
+            <CardContent className="grow">
               {isAppLoading && <div className="flex justify-center items-center h-32"><Loader2 className="h-8 w-8 animate-spin" /></div>}
               {!isAppLoading && filteredCategories.length > 0 ? (
                 <ScrollArea className="h-full pr-1"> 
@@ -289,4 +289,3 @@ export default function ManageCategoriesPage() {
     </div>
   );
 }
-

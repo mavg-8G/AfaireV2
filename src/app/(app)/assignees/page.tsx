@@ -1,3 +1,4 @@
+
 "use client";
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
@@ -219,8 +220,8 @@ export default function ManageAssigneesPage() {
   };
 
   return (
-    <div className="flex flex-col flex-grow min-h-screen">
-      <main className="flex-grow container mx-auto py-8 px-4">
+    <div className="flex flex-col grow min-h-screen">
+      <main className="grow container mx-auto py-8 px-4">
         <div className="mb-6 flex justify-start">
           <Link href="/" passHref>
             <Button variant="outline">
@@ -351,7 +352,7 @@ export default function ManageAssigneesPage() {
                     )}
                   />
                   <div className="flex space-x-2">
-                    <Button type="submit" className="flex-grow" disabled={isSubmitting || isAppStoreLoading}>
+                    <Button type="submit" className="grow" disabled={isSubmitting || isAppStoreLoading}>
                       {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (editingAssignee ? <Edit3 className="mr-2 h-5 w-5" /> : <PlusCircle className="mr-2 h-5 w-5" />)}
                       {editingAssignee ? t('saveChanges') : t('addNewAssignee')}
                     </Button>
@@ -371,7 +372,7 @@ export default function ManageAssigneesPage() {
               <CardTitle>{t('existingAssignees')}</CardTitle>
               <CardDescription>{t('viewEditManageAssignees')}</CardDescription>
             </CardHeader>
-            <CardContent className="flex-grow">
+            <CardContent className="grow">
              {isAppStoreLoading && <div className="flex justify-center items-center h-32"><Loader2 className="h-8 w-8 animate-spin" /></div>}
               {!isAppStoreLoading && assignees.length > 0 ? (
                 <ScrollArea className="h-full pr-1">
@@ -379,14 +380,14 @@ export default function ManageAssigneesPage() {
                     {assignees.map((assignee) => (
                       <li key={assignee.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-md shadow-sm">
                         <div className="flex items-center gap-3 min-w-0">
-                          <Users className="h-5 w-5 text-primary flex-shrink-0" />
+                          <Users className="h-5 w-5 text-primary shrink-0" />
                           <div className="truncate">
                             <span className="font-medium">{assignee.name}</span>
                             {assignee.username && <span className="text-xs text-muted-foreground">(@{assignee.username})</span>}
                           </div>
-                          {assignee.isAdmin && <Badge variant="secondary" className="ml-2 flex-shrink-0"><ShieldCheck className="h-3 w-3 mr-1" />{t('adminBadge')}</Badge>}
+                          {assignee.isAdmin && <Badge variant="secondary" className="ml-2 shrink-0"><ShieldCheck className="h-3 w-3 mr-1" />{t('adminBadge')}</Badge>}
                         </div>
-                        <div className="flex items-center flex-shrink-0">
+                        <div className="flex items-center shrink-0">
                           <Button variant="ghost" size="icon" onClick={() => handleEditAssignee(assignee)} className="text-primary hover:text-primary/80" disabled={isSubmitting}>
                             <Edit3 className="h-5 w-5" /><span className="sr-only">{t('editAssignee')}</span>
                           </Button>

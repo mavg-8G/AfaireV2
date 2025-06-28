@@ -82,14 +82,14 @@ export default function ActivityListItem({ activity, category, onEdit, onDelete,
       isCompletedForThisOccurrence && "bg-muted/50 opacity-75"
     )}>
       <CardHeader className="flex flex-row items-center justify-between py-2 px-3 space-y-0">
-        <div className="flex items-center gap-2 flex-grow min-w-0">
+        <div className="flex items-center gap-2 grow min-w-0">
           <Checkbox
             id={`activity-completed-${activity.id}-${occurrenceDateKey}`}
             checked={isCompletedForThisOccurrence}
             onCheckedChange={handleActivityCompletedChange}
             aria-labelledby={`activity-title-${activity.id}-${occurrenceDateKey}`}
           />
-          <div className="flex flex-col flex-grow min-w-0">
+          <div className="flex flex-col grow min-w-0">
             <CardTitle
               id={`activity-title-${activity.id}-${occurrenceDateKey}`}
               className={cn(
@@ -135,7 +135,7 @@ export default function ActivityListItem({ activity, category, onEdit, onDelete,
               )}
           </div>
         </div>
-        <div className="flex items-center flex-shrink-0">
+        <div className="flex items-center shrink-0">
           <Button variant="ghost" size="icon" onClick={handleAddToCalendar} className="h-7 w-7">
             <CalendarPlus className="h-4 w-4" />
             <span className="sr-only">{t('addToCalendarSr')}</span>
@@ -216,4 +216,3 @@ export default function ActivityListItem({ activity, category, onEdit, onDelete,
     </Card>
   );
 }
-    

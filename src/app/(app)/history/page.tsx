@@ -98,8 +98,8 @@ export default function HistoryPage() {
 
 
   return (
-    <div className="flex flex-col flex-grow min-h-screen">
-      <main className="flex-grow container mx-auto py-8 px-4">
+    <div className="flex flex-col grow min-h-screen">
+      <main className="grow container mx-auto py-8 px-4">
         <div className="mb-6 flex justify-start">
           <Link href="/" passHref>
             <Button variant="outline">
@@ -158,7 +158,7 @@ export default function HistoryPage() {
 
                         return (
                           <li key={entry.id} className="flex items-start space-x-3 p-3 bg-muted/30 rounded-lg shadow-sm border">
-                            <div className={cn("mt-1 p-1.5 rounded-full text-white flex-shrink-0", scopeInfo.color)}>
+                            <div className={cn("mt-1 p-1.5 rounded-full text-white shrink-0", scopeInfo.color)}>
                               <scopeInfo.icon className="h-4 w-4" />
                             </div>
                             <div className="flex-1 min-w-0">
@@ -190,4 +190,3 @@ export default function HistoryPage() {
     </div>
   );
 }
-

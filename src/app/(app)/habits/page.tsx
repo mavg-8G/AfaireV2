@@ -152,8 +152,8 @@ export default function ManageHabitsPage() {
   const iconNameDescription = iconNameDescKey.replace('<a>lucide.dev/icons</a>', linkPart);
 
   return (
-    <div className="flex flex-col flex-grow min-h-screen">
-      <main className="flex-grow container mx-auto py-8 px-4">
+    <div className="flex flex-col grow min-h-screen">
+      <main className="grow container mx-auto py-8 px-4">
         <div className="mb-6 flex justify-start">
           <Link href="/" passHref>
             <Button variant="outline" disabled={isSubmitting}>
@@ -262,7 +262,7 @@ export default function ManageHabitsPage() {
                   </div>
 
                   <div className="flex space-x-2 pt-2">
-                    <Button type="submit" className="flex-grow" disabled={isSubmitting || isAppLoading}>
+                    <Button type="submit" className="grow" disabled={isSubmitting || isAppLoading}>
                       {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (editingHabit ? <Edit3 className="mr-2 h-5 w-5" /> : <PlusCircle className="mr-2 h-5 w-5" />)}
                       {editingHabit ? t('saveChanges') : t('addNewHabit')}
                     </Button>
@@ -283,16 +283,16 @@ export default function ManageHabitsPage() {
               <CardTitle>{t('existingHabitsTitle')}</CardTitle>
               <CardDescription>{t('viewEditManageHabits')}</CardDescription>
             </CardHeader>
-            <CardContent className="flex-grow">
+            <CardContent className="grow">
               {isAppLoading && <div className="flex justify-center items-center h-32"><Loader2 className="h-8 w-8 animate-spin" /></div>}
               {!isAppLoading && habits.length > 0 ? (
                 <ScrollArea className="h-full pr-1"> 
                   <ul className="space-y-3">
                     {habits.map((habit) => (
                       <li key={habit.id} className="flex items-start justify-between p-3 bg-muted/50 rounded-md shadow-sm">
-                        <div className="flex-grow min-w-0">
+                        <div className="grow min-w-0">
                           <div className="flex items-center gap-3 mb-1">
-                            <habit.icon className="h-6 w-6 text-primary flex-shrink-0" />
+                            <habit.icon className="h-6 w-6 text-primary shrink-0" />
                             <span className="font-medium text-lg truncate" title={habit.name}>{habit.name}</span>
                           </div>
                           <div className="ml-9 space-y-1">
@@ -304,7 +304,7 @@ export default function ManageHabitsPage() {
                             ))}
                           </div>
                         </div>
-                        <div className="flex items-center flex-shrink-0 ml-2">
+                        <div className="flex items-center shrink-0 ml-2">
                           <Button variant="ghost" size="icon" onClick={() => handleEditHabit(habit)} className="text-primary hover:text-primary/80" disabled={isSubmitting}>
                             <Edit3 className="h-5 w-5" />
                             <span className="sr-only">{t('editHabit')}</span>
@@ -351,5 +351,3 @@ export default function ManageHabitsPage() {
     </div>
   );
 }
-
-    
