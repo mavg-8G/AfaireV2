@@ -33,7 +33,7 @@ function CustomDayContent(props: CustomDayContentProps) {
     <div className="relative w-full h-full flex flex-col items-center justify-start pt-1">
       {dayNumberEl}
       {eventCount > 0 && (
-        <div className="absolute bottom-1 flex items-center justify-center space-x-0.5 w-full">
+        <div className="absolute bottom-2 flex items-center justify-center space-x-0.5 w-full">
           {Array.from({ length: Math.min(eventCount, maxDots) }).map((_, i) => (
             <span
               key={i}
@@ -85,10 +85,10 @@ function Calendar({
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
         head_cell:
-          "text-muted-foreground rounded-md w-10 md:w-14 font-normal text-[0.8rem] md:text-base",
+          "text-muted-foreground rounded-md w-10 md:w-14 font-normal text-[0.8rem] md:text-lg",
         row: "flex w-full mt-2",
         cell: cn(
-          "h-10 md:h-14 w-10 md:w-14 text-center text-sm md:text-lg p-0 relative",
+          "h-10 md:h-14 w-10 md:w-14 text-center text-sm md:text-2xl p-0 relative",
           "[&:has([aria-selected].day-range-end)]:rounded-r-md",
           "[&:has([aria-selected].day-outside)]:bg-accent/50",
           "[&:has([aria-selected])]:bg-primary", 
