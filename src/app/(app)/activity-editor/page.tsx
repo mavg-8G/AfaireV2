@@ -90,6 +90,20 @@ export default function ActivityEditorPage() {
 
   const dateLocale = useMemo(() => (locale === 'es' ? es : locale === 'fr' ? fr : enUS), [locale]);
 
+  const orderedWeekDays = useMemo(() => {
+    const allDays = [
+      { id: 0, labelKey: 'daySun' }, { id: 1, labelKey: 'dayMon' }, { id: 2, labelKey: 'dayTue' },
+      { id: 3, labelKey: 'dayWed' }, { id: 4, labelKey: 'dayThu' }, { id: 5, labelKey: 'dayFri' },
+      { id: 6, labelKey: 'daySat' },
+    ];
+    const weekStartsOn = (locale === 'es' || locale === 'fr') ? 1 : 0; // 1 for Monday, 0 for Sunday
+    const ordered = [];
+    for (let i = 0; i < 7; i++) {
+        ordered.push(allDays[(weekStartsOn + i) % 7]);
+    }
+    return ordered;
+  }, [locale]);
+
   const activityFormSchema = z.object({
     title: z.string().min(1, t('activityTitleLabel')),
     categoryId: z.number({ required_error: t('categoryLabel'), invalid_type_error: t('categoryLabel') }).min(1, t('categoryLabel')),
@@ -426,7 +440,7 @@ export default function ActivityEditorPage() {
                     <FormItem>
                       <FormLabel>{t('recurrenceDaysOfWeekLabel')}</FormLabel>
                       <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-                        {WEEK_DAYS.map(day => (
+                        {orderedWeekDays.map(day => (
                           <FormField key={day.id} control={form.control} name="recurrence.daysOfWeek"
                             render={({ field }) => (
                                 <FormItem key={day.id} className="flex flex-row items-center space-x-1 space-y-0">
@@ -546,10 +560,3 @@ export default function ActivityEditorPage() {
     </div>
   );
 }
-
-const WEEK_DAYS = [
-  { id: 0, labelKey: 'daySun' }, { id: 1, labelKey: 'dayMon' }, { id: 2, labelKey: 'dayTue' },
-  { id: 3, labelKey: 'dayWed' }, { id: 4, labelKey: 'dayThu' }, { id: 5, labelKey: 'dayFri' },
-  { id: 6, labelKey: 'daySat' },
-] as const;
-
