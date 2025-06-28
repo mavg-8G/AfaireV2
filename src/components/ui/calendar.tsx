@@ -85,10 +85,10 @@ function Calendar({
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
         head_cell:
-          "text-muted-foreground rounded-md w-11 sm:w-9 font-normal text-[0.8rem]",
+          "text-muted-foreground rounded-md w-10 md:w-14 font-normal text-[0.8rem]",
         row: "flex w-full mt-2",
         cell: cn(
-          "h-11 sm:h-9 w-11 sm:w-9 text-center text-sm p-0 relative",
+          "h-10 md:h-14 w-10 md:w-14 text-center text-sm p-0 relative",
           "[&:has([aria-selected].day-range-end)]:rounded-r-md",
           "[&:has([aria-selected].day-outside)]:bg-accent/50",
           "[&:has([aria-selected])]:bg-primary", 
@@ -98,7 +98,7 @@ function Calendar({
         ),
         day: cn(
           buttonVariants({ variant: "ghost" }),
-          "h-11 sm:h-9 w-11 sm:w-9 p-0 font-normal aria-selected:opacity-100"
+          "h-10 md:h-14 w-10 md:w-14 p-0 font-normal aria-selected:opacity-100"
         ),
         day_range_end: "day-range-end",
         day_selected:

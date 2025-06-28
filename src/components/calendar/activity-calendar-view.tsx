@@ -533,7 +533,7 @@ export default function ActivityCalendarView() {
       <div className="container mx-auto py-6 flex flex-col lg:flex-row gap-6 items-start">
         <Card className="lg:w-1/2 xl:w-2/3 shadow-lg w-full">
           <CardContent className="p-0 sm:p-1 flex justify-center">
-            <Skeleton className="h-[300px] w-[350px] sm:w-[400px] sm:h-[350px] rounded-md" />
+            <Skeleton className="h-[300px] w-[300px] md:w-[420px] md:h-[380px] rounded-md" />
           </CardContent>
         </Card>
         <Card className="lg:w-1/2 xl:w-1/3 shadow-lg w-full flex flex-col">
