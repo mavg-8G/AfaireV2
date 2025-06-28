@@ -564,6 +564,7 @@ export default function ActivityCalendarView() {
                 </div>
             ) : (
                 <Calendar
+                key={locale}
                 mode="single"
                 selected={selectedDate}
                 onSelect={handleDateSelect}
@@ -713,6 +714,4 @@ export default function ActivityCalendarView() {
     </div>
   );
 }
-    
-
     
