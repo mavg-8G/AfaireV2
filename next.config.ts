@@ -9,6 +9,14 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'https://afaire.is-cool.dev/api/:path*',
+      },
+    ];
+  },
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [
