@@ -15,7 +15,7 @@ export function middleware(request: NextRequest) {
     object-src 'none';
     base-uri 'self';
     form-action 'self';
-    frame-ancestors 'self' https://*.cloudworkstations.dev;
+    frame-ancestors 'self' https://*.cloudworkstations.dev:*;
     block-all-mixed-content;
     upgrade-insecure-requests;
   `.replace(/\s{2,}/g, ' ').trim();
@@ -27,8 +27,6 @@ export function middleware(request: NextRequest) {
 
   // Other security headers
   response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  response.headers.set('X-Content-Type-Options', 'nosniff');
-  // The 'X-Frame-Options' header is removed in favor of the more modern 'frame-ancestors' CSP directive.
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set('Permissions-Policy', "camera=(), microphone=(), geolocation=(), payment=(), usb=(), display-capture=()");
 
