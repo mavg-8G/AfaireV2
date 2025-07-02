@@ -15,7 +15,7 @@ export function middleware(request: NextRequest) {
     object-src 'none';
     base-uri 'self';
     form-action 'self';
-    frame-ancestors 'self' https://*.cloudworkstations.dev:*;
+    frame-ancestors 'self' https://*.cloudworkstations.dev;
     connect-src 'self' https://afaire.is-cool.dev https://*.cloudworkstations.dev wss://*.cloudworkstations.dev;
     frame-src 'self' https://*.cloudworkstations.dev;
     block-all-mixed-content;
