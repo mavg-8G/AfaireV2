@@ -22,16 +22,17 @@ RUN npm prune --production
 # Step 8: Use a smaller image for the final stage
 FROM node:24-alpine AS runner
 WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
 
-# Step 9: Copy built app and node_modules from builder
-COPY --from=builder /app/.next /app/.next
+# Copy standalone build and static assets
+COPY --from=builder /app/.next/standalone /app
+COPY --from=builder /app/.next/static /app/.next/static
 COPY --from=builder /app/public /app/public
 COPY --from=builder /app/package.json /app/package.json
-COPY --from=builder /app/node_modules /app/node_modules
-COPY --from=builder /app/next.config.ts /app/next.config.ts
 
 # Step 10: Expose the port the app will run on
 EXPOSE 3000
 
 # Step 11: Set the command to run the app
-CMD ["npm", "start"]
+CMD ["node", "server.js"]
