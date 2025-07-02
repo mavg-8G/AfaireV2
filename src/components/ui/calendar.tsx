@@ -23,7 +23,7 @@ function CustomDayContent(props: CustomDayContentProps) {
   const eventCount = dayEventCounts?.get(dayKey) ?? 0;
   const maxDots = 3;
 
-  const dayNumberEl = <div className="text-base md:text-xl">{format(date, 'd')}</div>;
+  const dayNumberEl = <div className="text-sm md:text-base">{format(date, 'd')}</div>;
 
   if (!isSameMonth(date, displayMonth)) {
     return <div className="h-full w-full flex items-center justify-center">{dayNumberEl}</div>;
@@ -85,7 +85,7 @@ function Calendar({
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
         head_cell:
-          "text-muted-foreground rounded-md w-full font-normal text-[0.8rem] md:text-base",
+          "text-muted-foreground rounded-md w-full font-normal text-[0.8rem]",
         row: "flex w-full mt-2",
         cell: cn(
           "text-center text-sm p-0 relative",
@@ -98,7 +98,7 @@ function Calendar({
         ),
         day: cn(
           buttonVariants({ variant: "ghost" }),
-          "h-14 w-14 md:h-20 md:w-20 p-0 font-normal aria-selected:opacity-100"
+          "h-12 w-12 md:h-14 md:w-14 p-0 font-normal aria-selected:opacity-100"
         ),
         day_range_end: "day-range-end",
         day_selected:
