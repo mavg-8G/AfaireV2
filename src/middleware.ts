@@ -7,7 +7,7 @@ export function middleware(request: NextRequest) {
 
   // 2. Define your Content Security Policy
   const cspHeader = `
-    default-src 'self' https://afaire.is-cool.dev;
+    default-src 'self' https://afaire.is-cool.dev https://*.cloudworkstations.dev;
     script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https: 'unsafe-inline';
     style-src 'self' 'unsafe-inline';
     img-src 'self' blob: data: https://placehold.co;
@@ -16,6 +16,8 @@ export function middleware(request: NextRequest) {
     base-uri 'self';
     form-action 'self';
     frame-ancestors 'self' https://*.cloudworkstations.dev:*;
+    connect-src 'self' https://afaire.is-cool.dev https://*.cloudworkstations.dev wss://*.cloudworkstations.dev;
+    frame-src 'self' https://*.cloudworkstations.dev;
     block-all-mixed-content;
     upgrade-insecure-requests;
   `.replace(/\s{2,}/g, ' ').trim();
