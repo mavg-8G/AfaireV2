@@ -10,13 +10,13 @@ export function middleware(request: NextRequest) {
   // In development, allow connections from any *.cloudworkstations.dev subdomain
   // In production, restrict to the specific production API URL
   const connectSrcOrigins = isDevelopment
-    ? ["https://*.cloudworkstations.dev/*", "wss:"]
-    : ["https://afaire.is-cool.dev/*"];
+    ? [self, "https://*.cloudworkstations.dev", "wss:"]
+    : [self, "https://afaire.is-cool.dev"];
   
   // Define frame ancestors based on environment
   const frameAncestors = isDevelopment
-    ? "https://*.cloudworkstations.dev/*"
-    : "'none'";
+    ? [self, "https://*.cloudworkstations.dev", "https://studio.firebase.google.com"]
+    : ["'none'"];
 
   const cspDirectives = {
     "default-src": [self],
@@ -29,16 +29,15 @@ export function middleware(request: NextRequest) {
     ].filter(Boolean),
     "style-src": [
       self,
-      // UI libraries like ShadCN often use inline styles for positioning, etc.
-      "'unsafe-inline'",
+      "'unsafe-inline'", // Needed for dev and some UI libraries
     ],
     "img-src": [self, "data:", "https://placehold.co"],
-    "connect-src": [self, ...connectSrcOrigins],
+    "connect-src": connectSrcOrigins,
     "font-src": [self],
     "object-src": ["'none'"],
     "base-uri": [self],
     "form-action": [self],
-    "frame-ancestors": [frameAncestors],
+    "frame-ancestors": frameAncestors,
     "block-all-mixed-content": [],
     "upgrade-insecure-requests": [],
   };
