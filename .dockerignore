@@ -17,7 +17,6 @@ Dockerfile
 *.log
 npm-debug.log
 .vscode
-.env
 .idx
 .vscode
 .idea
