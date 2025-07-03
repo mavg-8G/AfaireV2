@@ -1,14 +1,13 @@
-
-import { NextResponse, type NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
   // 1. Create a random nonce for each request
-  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
 
   // 2. Define your Content Security Policy
   const cspHeader = `
     default-src 'self' https://afaire.is-cool.dev https://*.cloudworkstations.dev;
-    script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https: 'unsafe-inline';
+    script-src 'self' https: 'unsafe-inline';
     style-src 'self' 'unsafe-inline';
     img-src 'self' blob: data: https://placehold.co;
     font-src 'self';
@@ -20,18 +19,26 @@ export function middleware(request: NextRequest) {
     frame-src 'self' https://*.cloudworkstations.dev;
     block-all-mixed-content;
     upgrade-insecure-requests;
-  `.replace(/\s{2,}/g, ' ').trim();
+  `
+    .replace(/\s{2,}/g, " ")
+    .trim();
 
   // 3. Create a new response object and set headers
   const response = NextResponse.next();
-  response.headers.set('x-nonce', nonce);
-  response.headers.set('Content-Security-Policy', cspHeader);
+  response.headers.set("x-nonce", nonce);
+  response.headers.set("X-Content-Security-Policy", "nosniff");
+  // response.headers.set("Content-Security-Policy", cspHeader);
 
   // Other security headers
-  response.headers.set('X-Content-Type-Options', 'nosniff');
-  response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  response.headers.set('Permissions-Policy', "camera=(), microphone=(), geolocation=(), payment=(), usb=(), display-capture=()");
+  response.headers.set(
+    "Strict-Transport-Security",
+    "max-age=31536000; includeSubDomains"
+  );
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=(), payment=(), usb=(), display-capture=()"
+  );
 
   return response;
 }
@@ -47,6 +54,6 @@ export const config = {
     // - sw.js (service worker file)
     // - icons/ (directory for PWA icons)
     // - favicon.ico (favicon file)
-    '/((?!api/|_next/static/|_next/image/|manifest\\.json|sw\\.js|icons/|favicon\\.ico).*)',
+    "/((?!api/|_next/static/|_next/image/|manifest\\.json|sw\\.js|icons/|favicon\\.ico).*)",
   ],
-}
+};
