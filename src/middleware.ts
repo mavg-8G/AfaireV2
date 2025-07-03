@@ -18,11 +18,10 @@ export function middleware(request: NextRequest) {
     : ["'none'"];
 
   // In development, Next.js needs 'unsafe-eval' and 'unsafe-inline' for Fast Refresh.
-  // In production, 'strict-dynamic' allows trusted (nonced) scripts to load other scripts,
-  // which is essential for how Next.js loads its JavaScript chunks.
+  // In production, we allow self-hosted scripts and use a nonce for inline scripts.
   const scriptSrc = isDevelopment
     ? [self, "'unsafe-inline'", "'unsafe-eval'"]
-    : [self, `'nonce-${nonce}'`, "'strict-dynamic'"];
+    : [self, `'nonce-${nonce}'`];
 
   // 'unsafe-inline' is needed for styles by many UI libraries, including ShadCN.
   const styleSrc = [self, "'unsafe-inline'"];
