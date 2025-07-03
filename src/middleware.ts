@@ -1,35 +1,54 @@
+
 import { NextResponse, type NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
-  // 1. Create a random nonce for each request
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const isDevelopment = process.env.NODE_ENV === "development";
 
-  // 2. Define your Content Security Policy
+  // Base directives that are strict for production
+  let scriptSrc = `'nonce-${nonce}' 'self'`;
+  let styleSrc = `'nonce-${nonce}' 'self'`;
+  let connectSrc = `https://afaire.is-cool.dev/*`;
+  let imgSrc = `'self' data: https://placehold.co`;
+  
+  // In development, we need to relax the policy for HMR (Hot Module Replacement) and dev tools
+  if (isDevelopment) {
+    scriptSrc = `'self' 'unsafe-inline' 'unsafe-eval'`; // Allow inline scripts and eval for dev server
+    styleSrc = `'self' 'unsafe-inline'`; // Allow inline styles for dev
+    connectSrc = `'self' wss: ws: https://*.cloudworkstations.dev/*`; // Allow websocket for HMR
+    imgSrc = `* data:`; // Loosen image policy for dev
+  }
+
   const cspHeader = `
-    default-src 'self' https://afaire.is-cool.dev https://*.cloudworkstations.dev;
-    script-src 'self' https: 'unsafe-inline';
-    style-src 'self' 'unsafe-inline';
-    img-src 'self' blob: data: https://placehold.co;
+    default-src 'self';
+    script-src ${scriptSrc};
+    style-src ${styleSrc};
+    connect-src ${connectSrc};
+    img-src ${imgSrc};
     font-src 'self';
     object-src 'none';
     base-uri 'self';
     form-action 'self';
-    frame-ancestors 'self' https://*.cloudworkstations.dev;
-    connect-src 'self' https://afaire.is-cool.dev https://*.cloudworkstations.dev wss://*.cloudworkstations.dev;
-    frame-src 'self' https://*.cloudworkstations.dev;
-    block-all-mixed-content;
-    upgrade-insecure-requests;
+    frame-ancestors 'self' https://*.cloudworkstations.dev:*;
   `
     .replace(/\s{2,}/g, " ")
     .trim();
+  
+  // Headers for the server to render pages with the correct nonce
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", cspHeader);
 
-  // 3. Create a new response object and set headers
-  const response = NextResponse.next();
-  response.headers.set("x-nonce", nonce);
+
+  // Create the response object and attach headers for the client
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+
   response.headers.set("Content-Security-Policy", cspHeader);
   response.headers.set("X-Content-Type-Options", "nosniff");
-
-  // Other security headers
   response.headers.set(
     "Strict-Transport-Security",
     "max-age=31536000; includeSubDomains"
@@ -43,17 +62,8 @@ export function middleware(request: NextRequest) {
   return response;
 }
 
-// Apply middleware to all paths except for API routes, Next.js static assets, and specific files.
 export const config = {
   matcher: [
-    // Match all request paths except for the ones starting with:
-    // - api/ (API routes)
-    // - _next/static/ (static files)
-    // - _next/image/ (image optimization files)
-    // - manifest.json (PWA manifest file)
-    // - sw.js (service worker file)
-    // - icons/ (directory for PWA icons)
-    // - favicon.ico (favicon file)
     "/((?!api/|_next/static/|_next/image/|manifest\\.json|sw\\.js|icons/|favicon\\.ico).*)",
   ],
 };
