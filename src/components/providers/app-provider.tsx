@@ -505,7 +505,7 @@ const frontendToBackendActivityPayload = (
   > = {
     title: activity.title,
     start_date: new Date(activity.createdAt).toISOString(),
-    time: activity.time || undefined,
+    time: activity.time || "",
     category_id: activity.categoryId,
     notes: activity.notes,
     mode: activity.appMode === "all" ? "both" : activity.appMode,

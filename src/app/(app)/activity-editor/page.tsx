@@ -236,7 +236,7 @@ export default function ActivityEditorPage() {
       const activityPayloadBase = {
         title: data.title,
         categoryId: data.categoryId,
-        time: data.time === "" ? undefined : data.time,
+        time: data.time,
         notes: data.notes,
         recurrence: recurrenceRule,
         responsiblePersonIds: (appMode === 'personal') ? data.responsiblePersonIds?.map(id => Number(id)) : [],
