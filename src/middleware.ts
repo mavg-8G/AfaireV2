@@ -5,60 +5,57 @@ export function middleware(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDevelopment = process.env.NODE_ENV === "development";
 
-  // Define allowed origins
   const self = "'self'";
-  // In development, allow connections from any *.cloudworkstations.dev subdomain
-  // In production, restrict to the specific production API URL
-  const connectSrcOrigins = isDevelopment
+  
+  // Define allowed connection sources based on environment
+  const connectSrc = isDevelopment
     ? [self, "https://*.cloudworkstations.dev", "wss:"]
     : [self, "https://afaire.is-cool.dev"];
   
-  // Define frame ancestors based on environment
+  // Define allowed frame ancestors based on environment
   const frameAncestors = isDevelopment
     ? [self, "https://*.cloudworkstations.dev", "https://studio.firebase.google.com"]
     : ["'none'"];
 
-  const cspDirectives = {
-    "default-src": [self],
-    "script-src": [
-      self,
-      `'nonce-${nonce}'`,
-      // Next.js needs 'unsafe-eval' and 'unsafe-inline' in development for fast refresh.
-      isDevelopment ? "'unsafe-eval'" : "",
-      isDevelopment ? "'unsafe-inline'" : "",
-    ].filter(Boolean),
-    "style-src": [
-      self,
-      "'unsafe-inline'", // Needed for dev and some UI libraries
-    ],
-    "img-src": [self, "data:", "https://placehold.co"],
-    "connect-src": connectSrcOrigins,
-    "font-src": [self],
-    "object-src": ["'none'"],
-    "base-uri": [self],
-    "form-action": [self],
-    "frame-ancestors": frameAncestors,
-    "block-all-mixed-content": [],
-    "upgrade-insecure-requests": [],
-  };
+  // In development, Next.js needs 'unsafe-eval' and 'unsafe-inline' for Fast Refresh.
+  // In production, 'strict-dynamic' allows trusted (nonced) scripts to load other scripts,
+  // which is essential for how Next.js loads its JavaScript chunks.
+  const scriptSrc = isDevelopment
+    ? [self, "'unsafe-inline'", "'unsafe-eval'"]
+    : [self, `'nonce-${nonce}'`, "'strict-dynamic'"];
 
-  const cspHeader = Object.entries(cspDirectives)
-    .map(([key, value]) => `${key} ${value.join(" ")}`)
-    .join("; ");
+  // 'unsafe-inline' is needed for styles by many UI libraries, including ShadCN.
+  const styleSrc = [self, "'unsafe-inline'"];
 
-  // Headers for the server to render pages with the correct nonce
+  const cspDirectives = [
+    `default-src ${self}`,
+    `script-src ${scriptSrc.join(" ")}`,
+    `style-src ${styleSrc.join(" ")}`,
+    `img-src ${self} data: https://placehold.co`,
+    `connect-src ${connectSrc.join(" ")}`,
+    `font-src ${self}`,
+    `object-src 'none'`,
+    `base-uri ${self}`,
+    `form-action ${self}`,
+    `frame-ancestors ${frameAncestors.join(" ")}`,
+    `upgrade-insecure-requests`,
+  ];
+  
+  const cspHeader = cspDirectives.join("; ").trim();
+
+  // Set nonce on request headers for Next.js to use
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
 
-  // Create the response object and attach headers for the client
+  // Create the response object
   const response = NextResponse.next({
     request: {
       headers: requestHeaders,
     },
   });
 
+  // Set all security headers on the response
   response.headers.set("Content-Security-Policy", cspHeader);
-  response.headers.set("X-Frame-Options", "SAMEORIGIN");
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set(
     "Strict-Transport-Security",
@@ -75,6 +72,13 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico, manifest.json, sw.js, icons/ (PWA/static assets)
+     */
     "/((?!api/|_next/static/|_next/image/|manifest\\.json|sw\\.js|icons/|favicon\\.ico).*)",
   ],
 };
