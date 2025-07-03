@@ -26,8 +26,8 @@ export function middleware(request: NextRequest) {
   // 3. Create a new response object and set headers
   const response = NextResponse.next();
   response.headers.set("x-nonce", nonce);
-  response.headers.set("X-Content-Security-Policy", "nosniff");
-  // response.headers.set("Content-Security-Policy", cspHeader);
+  response.headers.set("Content-Security-Policy", cspHeader);
+  response.headers.set("X-Content-Type-Options", "nosniff");
 
   // Other security headers
   response.headers.set(
