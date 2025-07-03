@@ -2,30 +2,25 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
-  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDevelopment = process.env.NODE_ENV === "development";
-
   const self = "'self'";
-  
-  // Define allowed connection sources based on environment
+
+  // --- Define sources based on environment ---
+  const scriptSrc = isDevelopment
+    ? [self, "'unsafe-inline'", "'unsafe-eval'"]
+    : [self, "'unsafe-inline'"]; // Allow self-hosted and inline scripts in production
+
+  const styleSrc = [self, "'unsafe-inline'"]; // 'unsafe-inline' is often needed for UI libraries
+
   const connectSrc = isDevelopment
     ? [self, "https://*.cloudworkstations.dev", "wss:"]
-    : [self, "https://afaire.is-cool.dev"];
-  
-  // Define allowed frame ancestors based on environment
+    : ["https://afaire.is-cool.dev"];
+
   const frameAncestors = isDevelopment
     ? [self, "https://*.cloudworkstations.dev", "https://studio.firebase.google.com"]
     : ["'none'"];
 
-  // In development, Next.js needs 'unsafe-eval' and 'unsafe-inline' for Fast Refresh.
-  // In production, we allow self-hosted scripts and use a nonce for inline scripts.
-  const scriptSrc = isDevelopment
-    ? [self, "'unsafe-inline'", "'unsafe-eval'"]
-    : [self, `'nonce-${nonce}'`];
-
-  // 'unsafe-inline' is needed for styles by many UI libraries, including ShadCN.
-  const styleSrc = [self, "'unsafe-inline'"];
-
+  // --- Build the CSP header ---
   const cspDirectives = [
     `default-src ${self}`,
     `script-src ${scriptSrc.join(" ")}`,
@@ -39,21 +34,12 @@ export function middleware(request: NextRequest) {
     `frame-ancestors ${frameAncestors.join(" ")}`,
     `upgrade-insecure-requests`,
   ];
-  
-  const cspHeader = cspDirectives.join("; ").trim();
+  const cspHeader = cspDirectives.join("; ");
 
-  // Set nonce on request headers for Next.js to use
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-nonce", nonce);
+  // --- Create the response object ---
+  const response = NextResponse.next();
 
-  // Create the response object
-  const response = NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
-
-  // Set all security headers on the response
+  // --- Set all security headers on the response ---
   response.headers.set("Content-Security-Policy", cspHeader);
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set(
